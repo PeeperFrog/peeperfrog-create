@@ -63,6 +63,39 @@ Add the MCP server to your settings file:
 
 See the full [MCP server documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
 
+## Installing Skills
+
+Skills are a **Claude Code** (CLI) feature. They teach Claude how to use the MCP tools effectively. Claude Desktop does not support skills -- it uses the MCP server tools directly.
+
+### Copy skills to your Claude Code skills directory
+
+```bash
+# Linux / macOS
+cp -r skills/* ~/.claude/skills/
+
+# Windows (Git Bash or WSL)
+cp -r skills/* ~/.claude/skills/
+```
+
+This installs the following skills:
+
+| Skill | Slash Command | Description |
+|-------|---------------|-------------|
+| `image-generation-SKILL.md` | `/image-generation` | Overview of all image generation tools |
+| `image-auto-mode-SKILL.md` | `/image-auto-mode` | Auto mode -- server picks the best model for your budget |
+| `image-manual-control-SKILL.md` | `/image-manual-control` | Manual provider/model selection and advanced options |
+| `example-brand-image-guidelines-SKILL.md` | `/example-brand-image-guidelines` | Template for brand-specific image style guides |
+
+Once installed, type `/` in Claude Code to see available skills, or Claude will auto-discover them based on context.
+
+### Project-level installation (alternative)
+
+To scope skills to a single project instead of making them global:
+
+```bash
+cp -r skills/* /path/to/your/project/.claude/skills/
+```
+
 ## Project Structure
 
 ```
