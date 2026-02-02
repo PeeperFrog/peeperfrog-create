@@ -78,18 +78,30 @@ TOGETHER_API_KEY=your-together-api-key-here
 ### 4. Install dependencies
 
 ```bash
+python3 -m venv venv
+source venv/bin/activate
 pip install requests
 ```
 
 ### 5. Add to your MCP client
 
-#### Claude Code (`~/.claude/settings.json`)
+#### Claude Code
+
+Settings file: `~/.claude/settings.json` (all platforms)
+
+For **Claude Desktop**, use `claude_desktop_config.json` instead:
+
+| OS | Path |
+|---|---|
+| **Linux** | `~/.config/Claude/claude_desktop_config.json` |
+| **macOS** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| **Windows** | `%APPDATA%\Claude\claude_desktop_config.json` |
 
 ```json
 {
   "mcpServers": {
     "peeperfrog-create": {
-      "command": "python3",
+      "command": "/path/to/peeperfrog-create/peeperfrog-create-image/venv/bin/python3",
       "args": ["/path/to/peeperfrog-create/peeperfrog-create-image/src/image_server.py"],
       "env": {
         "GEMINI_API_KEY": "your-key",
