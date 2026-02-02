@@ -65,30 +65,53 @@ See the full [MCP server documentation](peeperfrog-create-mcp/README.md) for pro
 
 ## Installing Skills
 
-Skills are a **Claude Code** (CLI) feature. They teach Claude how to use the MCP tools effectively. Claude Desktop does not support skills -- it uses the MCP server tools directly.
+Skills teach Claude how to use the MCP tools effectively. They work in both **Claude Desktop** (the GUI app) and **Claude Code** (the CLI).
 
-### Copy skills to your Claude Code skills directory
+### Available skills
+
+| Skill | Description |
+|-------|-------------|
+| `image-generation` | Overview of all image generation tools |
+| `image-auto-mode` | Auto mode -- server picks the best model for your budget |
+| `image-manual-control` | Manual provider/model selection and advanced options |
+| `example-brand-image-guidelines` | Template for brand-specific image style guides |
+
+### Claude Desktop (GUI app)
+
+Skills are supported on Claude Desktop for Mac, Windows, and Linux (Pro plan and above).
+
+1. Open **Settings > Capabilities**
+2. Toggle on **Skills** if not already enabled
+3. Click **Add > Upload a skill**
+4. Upload each `SKILL.md` file from the `skills/` folder in this repo
+
+Repeat for each skill you want to install. Skills sync between Claude Desktop and Claude.ai (web).
+
+### Claude Code (CLI)
+
+Copy the skill files into your Claude Code skills directory:
+
+**Linux / macOS:**
 
 ```bash
-# Linux / macOS
-cp -r skills/* ~/.claude/skills/
-
-# Windows (Git Bash or WSL)
 cp -r skills/* ~/.claude/skills/
 ```
 
-This installs the following skills:
+**Windows (PowerShell):**
 
-| Skill | Slash Command | Description |
-|-------|---------------|-------------|
-| `image-generation-SKILL.md` | `/image-generation` | Overview of all image generation tools |
-| `image-auto-mode-SKILL.md` | `/image-auto-mode` | Auto mode -- server picks the best model for your budget |
-| `image-manual-control-SKILL.md` | `/image-manual-control` | Manual provider/model selection and advanced options |
-| `example-brand-image-guidelines-SKILL.md` | `/example-brand-image-guidelines` | Template for brand-specific image style guides |
+```powershell
+Copy-Item -Recurse -Path skills\* -Destination $env:USERPROFILE\.claude\skills\
+```
+
+**Windows (Git Bash or WSL):**
+
+```bash
+cp -r skills/* ~/.claude/skills/
+```
 
 Once installed, type `/` in Claude Code to see available skills, or Claude will auto-discover them based on context.
 
-### Project-level installation (alternative)
+#### Project-level installation (alternative)
 
 To scope skills to a single project instead of making them global:
 
