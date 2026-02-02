@@ -1,0 +1,28 @@
+# Environment and secrets
+.env
+config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Generated images (except logo)
+*.png
+!docs/logo.png
+*.jpg
+*.jpeg
+*.webp
+batch_queue.json
+batch_results.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/

@@ -1,0 +1,20 @@
+[Unit]
+Description=PeeperFrog Create MCP Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=YOUR_USERNAME
+WorkingDirectory=/path/to/peeperfrog-create/peeperfrog-create-image/src
+ExecStart=/usr/bin/python3 /path/to/peeperfrog-create/peeperfrog-create-image/src/image_server.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Load environment from file (keeps secrets out of unit file)
+EnvironmentFile=/path/to/peeperfrog-create/peeperfrog-create-image/.env
+
+[Install]
+WantedBy=multi-user.target
