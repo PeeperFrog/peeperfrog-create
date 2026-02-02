@@ -608,8 +608,21 @@ def convert_to_webp(quality=85, force=False):
         "error": result.stderr if result.returncode != 0 else None
     }
 
-def upload_to_wordpress(wp_url, wp_user, wp_password, directory="batch", limit=10):
+def upload_to_wordpress(wp_url, directory="batch", limit=10):
     from pathlib import Path
+
+    # Look up credentials from config.json wordpress section
+    wp_sites = CFG.get("wordpress", {})
+    # Normalize URL: strip trailing slash for matching
+    normalized_url = wp_url.rstrip("/")
+    site_cfg = wp_sites.get(normalized_url) or wp_sites.get(normalized_url + "/")
+    if not site_cfg:
+        raise Exception(f"No WordPress credentials found in config.json for '{wp_url}'. Add a 'wordpress' entry with user and password.")
+    wp_user = site_cfg.get("user")
+    wp_password = site_cfg.get("password")
+    if not wp_user or not wp_password:
+        raise Exception(f"WordPress config for '{wp_url}' is missing 'user' or 'password' in config.json.")
+
     batch_dir = os.path.join(CFG["images_dir"], directory)
     uploaded = []
     failed = []
@@ -622,7 +635,7 @@ def upload_to_wordpress(wp_url, wp_user, wp_password, directory="batch", limit=1
             with open(img_path, 'rb') as f:
                 files = {'file': (filename, f, 'image/webp')}
                 response = requests.post(
-                    f"{wp_url}/wp-json/wp/v2/media",
+                    f"{normalized_url}/wp-json/wp/v2/media",
                     auth=(wp_user, wp_password),
                     files=files
                 )
@@ -847,17 +860,15 @@ def handle_tools_list(request_id):
                 },
                 {
                     "name": "upload_to_wordpress",
-                    "description": "Upload WebP images directly to WordPress media library",
+                    "description": "Upload WebP images directly to WordPress media library. Credentials are read from config.json by URL.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com)"},
-                            "wp_user": {"type": "string", "description": "WordPress username"},
-                            "wp_password": {"type": "string", "description": "WordPress application password"},
+                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Must match an entry in config.json wordpress section."},
                             "directory": {"type": "string", "description": "Directory containing images (default: batch)", "default": "batch"},
                             "limit": {"type": "integer", "description": "Maximum number of images to upload", "default": 10}
                         },
-                        "required": ["wp_url", "wp_user", "wp_password"]
+                        "required": ["wp_url"]
                     }
                 }
             ]
@@ -927,8 +938,6 @@ def handle_tool_call(request_id, tool_name, arguments):
         elif tool_name == "upload_to_wordpress":
             result = upload_to_wordpress(
                 arguments.get("wp_url"),
-                arguments.get("wp_user"),
-                arguments.get("wp_password"),
                 arguments.get("directory", "batch"),
                 arguments.get("limit", 10)
             )

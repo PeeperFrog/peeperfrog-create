@@ -74,6 +74,9 @@ Skills teach Claude how to use the MCP tools effectively. They work in both **Cl
 | `image-generation` | Overview of all image generation tools |
 | `image-auto-mode` | Auto mode -- server picks the best model for your budget |
 | `image-manual-control` | Manual provider/model selection and advanced options |
+| `cost-estimation` | Estimate costs before generating -- compare providers and batch totals |
+| `webp-conversion` | Convert generated images to WebP for web optimization |
+| `wordpress-upload` | Upload WebP images to WordPress (credentials from config.json) |
 | `example-brand-image-guidelines` | Template for brand-specific image style guides |
 
 ### Claude Desktop (GUI app)

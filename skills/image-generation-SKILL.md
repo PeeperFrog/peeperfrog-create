@@ -62,7 +62,7 @@ peeperfrog-create:generate_image({
 | `run_batch` | Generate all queued images |
 | `estimate_image_cost` | Get a cost estimate without generating |
 | `convert_to_webp` | Convert generated images to WebP |
-| `upload_to_wordpress` | Upload WebP images to WordPress |
+| `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
 
 ---
@@ -145,4 +145,7 @@ Use `estimate_image_cost` for precise estimates before generating.
 
 - **image-auto-mode** -- Full auto mode documentation with all tiers, style hints, constraint filtering
 - **image-manual-control** -- Full manual control documentation with all providers, models, Gemini features
+- **cost-estimation** -- Estimate costs before generating, compare providers and batch totals
+- **webp-conversion** -- Convert generated images to WebP for web optimization
+- **wordpress-upload** -- Upload WebP images to WordPress media library
 - **example-brand-image-guidelines** -- Template for brand-specific visual identity extensions

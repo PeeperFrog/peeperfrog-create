@@ -40,7 +40,7 @@ A multi-provider MCP (Model Context Protocol) server for AI image generation. Su
 | `run_batch` | Generate all queued images |
 | `estimate_image_cost` | Get a cost estimate without generating anything |
 | `convert_to_webp` | Convert generated images to WebP |
-| `upload_to_wordpress` | Upload WebP images to WordPress |
+| `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
 
 ## Quick Start
