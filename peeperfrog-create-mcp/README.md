@@ -61,9 +61,9 @@ You only need keys for the providers you plan to use.
 
 | Provider | Where to get your key |
 |---|---|
-| **Google Gemini** | [Google AI Studio](https://aistudio.google.com/apikey) -- click "Create API key". Free tier available. |
-| **OpenAI** | [OpenAI Platform](https://platform.openai.com/api-keys) -- create a new secret key. Requires billing setup. |
-| **Together AI** | [Together AI Settings](https://api.together.xyz/settings/api-keys) -- copy your API key. Free credits on signup. |
+| **Google Gemini** | <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a> -- click "Create API key". Free tier available. |
+| **OpenAI** | <a href="https://platform.openai.com/api-keys" target="_blank">OpenAI Platform</a> -- create a new secret key. Requires billing setup. |
+| **Together AI** | <a href="https://api.together.xyz/settings/api-keys" target="_blank">Together AI Settings</a> -- copy your API key. Free credits on signup. |
 
 ### 3. Set your API keys
 
