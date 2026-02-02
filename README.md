@@ -61,7 +61,7 @@ Add the MCP server to your settings file:
 }
 ```
 
-See the full [image server documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
+See the full [MCP server documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
 
 ## Project Structure
 
