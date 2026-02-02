@@ -255,3 +255,40 @@ Use the **image-manual-control** skill instead when you:
 - Want Gemini-specific features: `thinking_level`, `media_resolution`
 - Need precise control over which provider handles each image
 - Are debugging or testing a specific provider
+
+---
+
+## Post-Generation
+
+After generating images (single or batch), use these tools for optimization and publishing:
+
+### WebP Conversion
+
+Convert all generated images to WebP for smaller file sizes (typically 70-80% reduction):
+
+```javascript
+peeperfrog-create:convert_to_webp({ quality: 85 })
+
+// Force reconversion of already-converted images
+peeperfrog-create:convert_to_webp({ quality: 85, force: true })
+```
+
+### WordPress Upload
+
+Upload converted WebP images directly to WordPress:
+
+```javascript
+peeperfrog-create:upload_to_wordpress({
+  wp_url: "https://example.com",
+  wp_user: "admin",
+  wp_password: "app-password"
+})
+```
+
+### Get WebP Base64
+
+Retrieve generated WebP images as base64 data:
+
+```javascript
+peeperfrog-create:get_generated_webp_images({ directory: "batch", limit: 10 })
+```
