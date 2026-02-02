@@ -69,10 +69,9 @@ See the full [image server documentation](peeperfrog-create-mcp/README.md) for p
 peeperfrog-create/
 ├── peeperfrog-create-mcp/   # MCP server source
 │   ├── src/                   # Server code
-│   ├── skills/                # Claude SKILL files
 │   ├── scripts/               # Utility scripts (WebP conversion)
 │   └── README.md              # Full documentation
-├── tools/                     # Workflow guides
+├── skills/                    # Claude SKILL files
 ├── tests/                     # Test suite
 └── docs/                      # Project assets
 ```

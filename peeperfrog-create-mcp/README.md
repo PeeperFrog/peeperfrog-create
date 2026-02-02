@@ -123,11 +123,6 @@ peeperfrog-create-mcp/
 │   └── batch_generate.py          # Batch image generation
 ├── scripts/
 │   └── webp-convert.py            # PNG/JPG to WebP converter
-├── skills/
-│   ├── image-generation-SKILL.md              # Claude skill file
-│   ├── image-auto-mode-SKILL.md               # Auto mode skill
-│   ├── image-manual-control-SKILL.md          # Manual control skill
-│   └── example-brand-image-guidelines-SKILL.md # Brand template skill
 ├── docs/
 │   └── systemd-service.example    # Systemd service template
 ├── config.json.example
