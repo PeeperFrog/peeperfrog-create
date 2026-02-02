@@ -6,15 +6,15 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=YOUR_USERNAME
-WorkingDirectory=/path/to/peeperfrog-create/peeperfrog-create-image/src
-ExecStart=/usr/bin/python3 /path/to/peeperfrog-create/peeperfrog-create-image/src/image_server.py
+WorkingDirectory=/path/to/peeperfrog-create/peeperfrog-create-mcp/src
+ExecStart=/usr/bin/python3 /path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
 
 # Load environment from file (keeps secrets out of unit file)
-EnvironmentFile=/path/to/peeperfrog-create/peeperfrog-create-image/.env
+EnvironmentFile=/path/to/peeperfrog-create/peeperfrog-create-mcp/.env
 
 [Install]
 WantedBy=multi-user.target

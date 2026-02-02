@@ -2,7 +2,7 @@
   <img src="docs/logo.png" alt="PeeperFrog Create" width="200">
 </p>
 
-<h1 align="center">PeeperFrog Create</h1>
+<h1 align="center">PeeperFrog Create MCP</h1>
 
 A multi-provider MCP (Model Context Protocol) server for AI image generation. Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single and batch generation, reference images, cost estimation, WebP conversion, and WordPress upload.
 
@@ -49,7 +49,7 @@ A multi-provider MCP (Model Context Protocol) server for AI image generation. Su
 
 ```bash
 git clone https://github.com/PeeperFrog/peeperfrog-create.git
-cd peeperfrog-create/peeperfrog-create-image
+cd peeperfrog-create/peeperfrog-create-mcp
 
 cp config.json.example config.json
 cp .env.example .env
@@ -101,8 +101,8 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
 {
   "mcpServers": {
     "peeperfrog-create": {
-      "command": "/path/to/peeperfrog-create/peeperfrog-create-image/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-create/peeperfrog-create-image/src/image_server.py"],
+      "command": "/path/to/peeperfrog-create/peeperfrog-create-mcp/venv/bin/python3",
+      "args": ["/path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py"],
       "env": {
         "GEMINI_API_KEY": "your-key",
         "OPENAI_API_KEY": "your-key",
@@ -116,7 +116,7 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
 ## Project Structure
 
 ```
-peeperfrog-create-image/
+peeperfrog-create-mcp/
 ├── src/
 │   ├── image_server.py            # Main MCP server
 │   ├── batch_manager.py           # Batch queue management

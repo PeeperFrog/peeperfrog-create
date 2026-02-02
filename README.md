@@ -25,7 +25,7 @@ New capabilities and integrations with other services are in active development.
 
 ```bash
 git clone https://github.com/PeeperFrog/peeperfrog-create.git
-cd peeperfrog-create/peeperfrog-create-image
+cd peeperfrog-create/peeperfrog-create-mcp
 
 cp config.json.example config.json
 cp .env.example .env
@@ -49,8 +49,8 @@ Add the MCP server to your settings file:
 {
   "mcpServers": {
     "peeperfrog-create": {
-      "command": "/path/to/peeperfrog-create/peeperfrog-create-image/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-create/peeperfrog-create-image/src/image_server.py"],
+      "command": "/path/to/peeperfrog-create/peeperfrog-create-mcp/venv/bin/python3",
+      "args": ["/path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py"],
       "env": {
         "GEMINI_API_KEY": "your-key",
         "OPENAI_API_KEY": "your-key",
@@ -61,13 +61,13 @@ Add the MCP server to your settings file:
 }
 ```
 
-See the full [image server documentation](peeperfrog-create-image/README.md) for provider details, auto mode, batch workflows, and pricing.
+See the full [image server documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
 
 ## Project Structure
 
 ```
 peeperfrog-create/
-├── peeperfrog-create-image/   # MCP server source
+├── peeperfrog-create-mcp/   # MCP server source
 │   ├── src/                   # Server code
 │   ├── skills/                # Claude SKILL files
 │   ├── scripts/               # Utility scripts (WebP conversion)

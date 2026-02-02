@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for peeperfrog-create-image utility functions that don't require API keys."""
+"""Tests for peeperfrog-create-mcp utility functions that don't require API keys."""
 
 import os
 import sys
@@ -33,7 +33,7 @@ def _mock_config():
 
 
 def _mock_pricing():
-    pricing_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "pricing.json")
+    pricing_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "pricing.json")
     with open(pricing_path, "r") as f:
         return json.load(f)
 
@@ -44,16 +44,16 @@ _pricing = _mock_pricing()
 
 # Patch the module-level config and pricing loading
 sys.modules.pop("image_server", None)
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "src"))
 
 import importlib
 with patch.dict(os.environ, {}, clear=False):
     # We need to patch open for config.json at module level
     original_open = open
-    _config_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "src", "..", "config.json")
+    _config_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "src", "..", "config.json")
 
     # Create a temporary config.json for the module to load
-    config_json_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "config.json")
+    config_json_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "config.json")
     _created_config = False
     if not os.path.exists(config_json_path):
         _created_config = True

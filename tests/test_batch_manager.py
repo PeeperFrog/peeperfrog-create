@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for batch_manager.py (peeperfrog-create-image version) - all pure utility, no API keys."""
+"""Tests for batch_manager.py (peeperfrog-create-mcp version) - all pure utility, no API keys."""
 
 import os
 import sys
@@ -14,7 +14,7 @@ _tmpdir = tempfile.mkdtemp()
 _queue_file = os.path.join(_tmpdir, "batch_queue.json")
 
 # Create temp config for module import
-_config_json_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "config.json")
+_config_json_path = os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "config.json")
 _created_config = False
 if not os.path.exists(_config_json_path):
     _created_config = True
@@ -30,7 +30,7 @@ if not os.path.exists(_config_json_path):
             "api_delay_seconds": 3,
         }, f)
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-image", "src"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "peeperfrog-create-mcp", "src"))
 import batch_manager
 
 # Override the module's QUEUE_FILE to use our temp
