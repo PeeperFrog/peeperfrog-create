@@ -331,7 +331,7 @@ def _generate_openai(prompt, aspect_ratio, quality, api_key):
 
     payload = {
         "model": model, "prompt": prompt, "size": size,
-        "quality": openai_quality, "n": 1, "response_format": "b64_json",
+        "quality": openai_quality, "n": 1, "output_format": "png",
     }
 
     response = requests.post(

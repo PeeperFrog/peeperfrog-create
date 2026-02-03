@@ -455,7 +455,7 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
         "size": size,
         "quality": openai_quality,
         "n": 1,
-        "response_format": "b64_json",
+        "output_format": "png",
     }
 
     response = requests.post(
