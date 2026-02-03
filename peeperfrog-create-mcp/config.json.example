@@ -7,6 +7,7 @@
   "webp_convert_script": "./scripts/webp-convert.py",
   "max_reference_images": 14,
   "api_delay_seconds": 3,
+  "debug": false,
   "wordpress": {
     "https://example.com": {
       "user": "your-wordpress-username",

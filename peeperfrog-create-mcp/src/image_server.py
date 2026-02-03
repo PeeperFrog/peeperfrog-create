@@ -17,6 +17,7 @@ import os
 import base64
 import requests
 import subprocess
+import traceback
 from datetime import datetime
 from batch_generate import log_generation, get_cost_from_log
 
@@ -41,6 +42,21 @@ def load_config():
 
 CFG = load_config()
 MAX_REF_IMAGES = CFG.get("max_reference_images", 14)
+
+# --- Debug logging ---
+DEBUG_ENABLED = CFG.get("debug", False)
+DEBUG_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(CONFIG_PATH)), "debug.log")
+
+def debug_log(message, level="INFO"):
+    """Write debug message to log file if debug is enabled."""
+    if not DEBUG_ENABLED:
+        return
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+        with open(DEBUG_LOG_PATH, 'a') as f:
+            f.write(f"[{timestamp}] [{level}] {message}\n")
+    except Exception:
+        pass  # Fail silently - don't let logging break functionality
 
 # --- Pricing ---
 PRICING_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pricing.json")
@@ -384,6 +400,7 @@ def _get_api_key(provider):
 
 def _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, search_grounding=False, thinking_level=None, media_resolution=None):
     """Generate image using Google Gemini API."""
+    debug_log(f"Gemini generation starting: quality={quality}, aspect_ratio={aspect_ratio}, image_size={image_size}")
     api_key = _get_api_key("gemini")
     model = PROVIDERS["gemini"]["models"][quality]
 
@@ -392,7 +409,8 @@ def _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, searc
         image_size = "small"
     gemini_size = size_map.get(image_size, "2K")
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=***"
+    debug_log(f"Gemini API URL: {url}")
 
     parts = _encode_reference_images(ref_paths)
     parts.append({"text": prompt})
@@ -423,8 +441,15 @@ def _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, searc
     if search_grounding:
         payload["tools"] = [{"google_search": {}}]
 
-    response = requests.post(url, json=payload, headers={'Content-Type': 'application/json'})
+    # Log payload without image data for debugging
+    payload_log = json.dumps({k: v for k, v in payload.items() if k != "contents"})
+    debug_log(f"Gemini request payload (partial): {payload_log}")
+
+    actual_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    response = requests.post(actual_url, json=payload, headers={'Content-Type': 'application/json'})
+    debug_log(f"Gemini response status: {response.status_code}")
     if response.status_code != 200:
+        debug_log(f"Gemini API error response: {response.text}", "ERROR")
         raise Exception(f"Gemini API error: {response.status_code} - {response.text}")
 
     data = response.json()
@@ -441,6 +466,7 @@ def _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, searc
 
 def _generate_openai(prompt, aspect_ratio, image_size, quality):
     """Generate image using OpenAI API (gpt-image-1)."""
+    debug_log(f"OpenAI generation starting: quality={quality}, aspect_ratio={aspect_ratio}")
     api_key = _get_api_key("openai")
     model = PROVIDERS["openai"]["models"][quality]
 
@@ -457,15 +483,19 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
         "n": 1,
     }
 
+    debug_log(f"OpenAI request payload: {json.dumps(payload)}")
+
     response = requests.post(
         "https://api.openai.com/v1/images/generations",
         json=payload,
         headers={
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {api_key}'
+            'Authorization': f'Bearer ***'
         }
     )
+    debug_log(f"OpenAI response status: {response.status_code}")
     if response.status_code != 200:
+        debug_log(f"OpenAI API error response: {response.text}", "ERROR")
         raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
 
     data = response.json()
@@ -489,6 +519,7 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
 
 def _generate_together(prompt, aspect_ratio, image_size, quality, model_alias=None):
     """Generate image using Together AI API (FLUX models + 20+ other models)."""
+    debug_log(f"Together generation starting: quality={quality}, aspect_ratio={aspect_ratio}, model_alias={model_alias}")
     api_key = _get_api_key("together")
 
     # Model override via alias
@@ -515,15 +546,19 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, model_alias=No
     if steps > 0:
         payload["steps"] = steps
 
+    debug_log(f"Together request payload: {json.dumps(payload)}")
+
     response = requests.post(
         "https://api.together.xyz/v1/images/generations",
         json=payload,
         headers={
             'Content-Type': 'application/json',
-            'Authorization': f'Bearer {api_key}'
+            'Authorization': f'Bearer ***'
         }
     )
+    debug_log(f"Together response status: {response.status_code}")
     if response.status_code != 200:
+        debug_log(f"Together API error response: {response.text}", "ERROR")
         raise Exception(f"Together API error: {response.status_code} - {response.text}")
 
     data = response.json()
@@ -964,6 +999,7 @@ def handle_tools_list(request_id):
     })
 
 def handle_tool_call(request_id, tool_name, arguments):
+    debug_log(f"Tool call: {tool_name} with args: {json.dumps(arguments)}")
     try:
         if tool_name == "generate_image":
             result = generate_image(
@@ -1038,12 +1074,14 @@ def handle_tool_call(request_id, tool_name, arguments):
         else:
             raise Exception(f"Unknown tool: {tool_name}")
 
+        debug_log(f"Tool {tool_name} completed successfully")
         response = {
             "jsonrpc": "2.0",
             "id": request_id,
             "result": {"content": [{"type": "text", "text": json.dumps(result)}]}
         }
     except Exception as e:
+        debug_log(f"Tool {tool_name} failed: {str(e)}\n{traceback.format_exc()}", "ERROR")
         response = {
             "jsonrpc": "2.0",
             "id": request_id,
@@ -1054,15 +1092,18 @@ def handle_tool_call(request_id, tool_name, arguments):
 def main():
     sys.stderr.write("PeeperFrog Create MCP Server v0.1 - Multi-Provider (Gemini/OpenAI/Together)\n")
     sys.stderr.flush()
+    debug_log("Server starting")
 
     while True:
         try:
             message = read_message()
             if message is None:
+                debug_log("Received EOF, shutting down")
                 break
 
             method = message.get("method")
             request_id = message.get("id")
+            debug_log(f"Received message: method={method}, id={request_id}")
 
             if method == "initialize":
                 handle_initialize(request_id)
@@ -1072,9 +1113,10 @@ def main():
                 params = message.get("params", {})
                 handle_tool_call(request_id, params.get("name"), params.get("arguments", {}))
             elif method == "notifications/initialized":
-                pass
+                debug_log("Client initialized notification received")
 
         except Exception as e:
+            debug_log(f"Main loop error: {str(e)}\n{traceback.format_exc()}", "ERROR")
             sys.stderr.write(f"Error: {str(e)}\n")
             sys.stderr.flush()
 
