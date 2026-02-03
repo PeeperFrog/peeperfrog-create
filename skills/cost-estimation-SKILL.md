@@ -195,6 +195,75 @@ When `auto_mode` is used, `auto_selected` tells you which model would be chosen.
 
 ---
 
+## Generation Log & Cost Lookup
+
+Every image generation (single or batch) is logged to `generation_log.csv` in your images directory. Use `get_generation_cost` to query historical costs.
+
+### Query by Filename
+
+```javascript
+// Look up cost for a specific image
+peeperfrog-create:get_generation_cost({
+  filename: "generated_image_20250203_141523"
+})
+// Works with or without .png extension
+```
+
+### Query by Date Range
+
+```javascript
+// Get all costs for today
+peeperfrog-create:get_generation_cost({
+  start_datetime: "2025-02-03",
+  end_datetime: "2025-02-03"
+})
+
+// Get costs for a specific time range
+peeperfrog-create:get_generation_cost({
+  start_datetime: "2025-02-01 09:00:00",
+  end_datetime: "2025-02-03 17:00:00"
+})
+```
+
+### Response
+
+```json
+{
+  "records": [
+    {
+      "datetime": "2025-02-03 14:15:23",
+      "filename": "generated_image_20250203_141523.png",
+      "status": "success",
+      "cost_usd": "0.042000",
+      "provider": "together",
+      "quality": "pro",
+      "aspect_ratio": "16:9"
+    }
+  ],
+  "count": 1,
+  "total_cost": 0.042,
+  "log_file": "/home/user/Pictures/ai-generated-images/generation_log.csv"
+}
+```
+
+### Log File Format
+
+The CSV log (`generation_log.csv`) contains:
+
+| Column | Description |
+|--------|-------------|
+| datetime | Generation timestamp (YYYY-MM-DD HH:MM:SS) |
+| filename | Image filename |
+| status | "success" or error message |
+| cost_usd | Estimated cost (6 decimal places) |
+| provider | gemini, openai, or together |
+| quality | pro or fast |
+| aspect_ratio | Image aspect ratio |
+
+Use this for auditing, expense tracking, or importing into spreadsheets.
+
+---
+
 ## Related Skills
 
 - **image-auto-mode** -- Auto mode generation with cost tiers
