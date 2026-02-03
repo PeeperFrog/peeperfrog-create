@@ -258,6 +258,56 @@ TOGETHER_MODELS = {
 
 TOGETHER_MODEL_ALIASES = list(TOGETHER_MODELS.keys())
 
+# --- Model-specific resolution constraints ---
+# Some models (like imagen-4) only support fixed resolutions
+# Format: list of (width, height) tuples
+IMAGEN4_RESOLUTIONS = [
+    (1024, 1024),   # 1:1 square
+    (2048, 2048),   # 1:1 square large
+    (768, 1408),    # 9:16 portrait
+    (1536, 2816),   # 9:16 portrait large
+    (1408, 768),    # 16:9 landscape
+    (2816, 1536),   # 16:9 landscape large
+    (896, 1280),    # ~7:10 portrait
+    (1792, 2560),   # ~7:10 portrait large
+    (1280, 896),    # ~10:7 landscape
+    (2560, 1792),   # ~10:7 landscape large
+]
+
+def _get_imagen4_resolution(aspect_ratio, image_size):
+    """Find the closest imagen-4 supported resolution for the requested aspect ratio and size."""
+    w_ratio, h_ratio = parse_aspect_ratio(aspect_ratio)
+    target_ratio = w_ratio / h_ratio
+
+    best_match = None
+    best_score = float('inf')
+
+    for w, h in IMAGEN4_RESOLUTIONS:
+        res_ratio = w / h
+        ratio_diff = abs(res_ratio - target_ratio)
+
+        # Calculate megapixels
+        mp = w * h / 1_000_000
+
+        # Size preference scoring
+        if image_size == "xlarge":
+            # For xlarge, strongly prefer 2x resolutions (>3MP)
+            size_penalty = 0 if mp >= 3.0 else 0.8
+        elif image_size == "large":
+            # For large, prefer standard resolutions (~1MP)
+            size_penalty = 0 if 0.8 <= mp <= 2.0 else 0.3
+        else:
+            # For small/medium, prefer lower resolutions
+            size_penalty = 0 if mp <= 1.5 else 0.5
+
+        score = ratio_diff + size_penalty
+
+        if score < best_score:
+            best_score = score
+            best_match = (w, h)
+
+    return best_match
+
 # --- Auto mode: capability matrix for model selection ---
 # cost_per_image_1mp: normalized cost for a 1-megapixel image (for sorting)
 # max_size: highest image_size this model supports (small < medium < large < xlarge)
@@ -531,8 +581,13 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, model_alias=No
         model = PROVIDERS["together"]["models"][quality]
         steps = 4 if quality == "fast" else 28
 
-    # Calculate dimensions from any aspect ratio
-    width, height = calculate_dimensions(aspect_ratio, image_size)
+    # Calculate dimensions - use model-specific resolution for imagen-4
+    is_imagen4 = model_alias and model_alias.startswith("imagen4")
+    if is_imagen4:
+        width, height = _get_imagen4_resolution(aspect_ratio, image_size)
+        debug_log(f"Using imagen-4 specific resolution: {width}x{height}")
+    else:
+        width, height = calculate_dimensions(aspect_ratio, image_size)
 
     payload = {
         "model": model,
