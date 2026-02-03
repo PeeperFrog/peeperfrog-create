@@ -39,6 +39,7 @@ A multi-provider MCP (Model Context Protocol) server for AI image generation. Su
 | `view_batch_queue` | View queued images |
 | `run_batch` | Generate all queued images |
 | `estimate_image_cost` | Get a cost estimate without generating anything |
+| `get_generation_cost` | Query cost from generation log by filename or date range |
 | `convert_to_webp` | Convert generated images to WebP |
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
@@ -217,6 +218,25 @@ generate_image({ prompt: "A landscape", media_resolution: "high" })
 ### Cost estimation
 
 Every `generate_image` and `add_to_batch` response includes an `estimated_cost_usd` field. Batch results include per-image costs and a total. Pricing data is loaded from `pricing.json` and can be updated as provider rates change.
+
+### Generation log
+
+All image generations are logged to `generation_log.csv` in your images directory. The log records timestamp, filename, status, cost, provider, quality, and aspect ratio for every generation.
+
+Use `get_generation_cost` to query the log:
+
+```javascript
+// Look up cost for a specific image
+get_generation_cost({ filename: "hero-image" })
+
+// Get all costs for a date range
+get_generation_cost({ start_datetime: "2025-02-01", end_datetime: "2025-02-03" })
+
+// Get costs for a specific time window
+get_generation_cost({ start_datetime: "2025-02-03 09:00:00", end_datetime: "2025-02-03 17:00:00" })
+```
+
+The log file is CSV format for easy import into spreadsheets or auditing tools.
 
 ## Pricing Quick Reference
 

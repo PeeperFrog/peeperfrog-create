@@ -9,8 +9,10 @@ import os
 import json
 import time
 import base64
+import csv
 import requests
 import subprocess
+from datetime import datetime
 
 # Load config from same directory as this script
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
@@ -36,6 +38,111 @@ def load_pricing():
         return None
 
 PRICING = load_pricing()
+
+# --- Generation Log ---
+LOG_FILE = os.path.join(os.path.expanduser(CFG.get("images_dir", "~/Pictures/ai-generated-images")), "generation_log.csv")
+LOG_HEADER = ["datetime", "filename", "status", "cost_usd", "provider", "quality", "aspect_ratio"]
+
+def ensure_log_exists():
+    """Create log file with header if it doesn't exist."""
+    if not os.path.exists(LOG_FILE):
+        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
+        with open(LOG_FILE, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(LOG_HEADER)
+
+def log_generation(filename, status, cost_usd=None, provider=None, quality=None, aspect_ratio=None):
+    """Append a generation record to the CSV log."""
+    ensure_log_exists()
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, 'a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            timestamp,
+            filename,
+            status,
+            f"{cost_usd:.6f}" if cost_usd is not None else "",
+            provider or "",
+            quality or "",
+            aspect_ratio or ""
+        ])
+
+def get_cost_from_log(filename=None, start_datetime=None, end_datetime=None):
+    """
+    Query cost from generation log by filename or date/time range.
+
+    Args:
+        filename: Image filename (with or without .png extension)
+        start_datetime: Start of date range (ISO format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
+        end_datetime: End of date range (ISO format: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)
+
+    Returns:
+        dict with matching records and total cost
+    """
+    if not os.path.exists(LOG_FILE):
+        return {"error": "Log file not found", "records": [], "total_cost": 0}
+
+    # Normalize filename (strip extension)
+    search_name = None
+    if filename:
+        search_name = filename.rsplit('.', 1)[0] if '.' in filename else filename
+
+    # Parse date range
+    start_dt = None
+    end_dt = None
+    if start_datetime:
+        try:
+            if len(start_datetime) == 10:  # YYYY-MM-DD
+                start_dt = datetime.strptime(start_datetime, "%Y-%m-%d")
+            else:
+                start_dt = datetime.strptime(start_datetime, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return {"error": f"Invalid start_datetime format: {start_datetime}"}
+    if end_datetime:
+        try:
+            if len(end_datetime) == 10:  # YYYY-MM-DD
+                end_dt = datetime.strptime(end_datetime, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+            else:
+                end_dt = datetime.strptime(end_datetime, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return {"error": f"Invalid end_datetime format: {end_datetime}"}
+
+    records = []
+    total_cost = 0.0
+
+    with open(LOG_FILE, 'r', newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Check filename match
+            if search_name:
+                row_name = row["filename"].rsplit('.', 1)[0] if '.' in row["filename"] else row["filename"]
+                if row_name != search_name:
+                    continue
+
+            # Check date range
+            if start_dt or end_dt:
+                try:
+                    row_dt = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    continue
+                if start_dt and row_dt < start_dt:
+                    continue
+                if end_dt and row_dt > end_dt:
+                    continue
+
+            records.append(row)
+            if row["cost_usd"]:
+                try:
+                    total_cost += float(row["cost_usd"])
+                except ValueError:
+                    pass
+
+    return {
+        "records": records,
+        "count": len(records),
+        "total_cost": round(total_cost, 6),
+        "log_file": LOG_FILE
+    }
 
 def estimate_cost(provider, quality, image_size, aspect_ratio, num_reference_images=0, search_grounding=False, thinking_level=None, model_alias=None):
     """Estimate cost in USD for a single image generation."""
@@ -355,10 +462,12 @@ def generate_images_batch(prompts_file, output_dir):
                 result["estimated_cost_usd"] = cost
             print(f"Saved to: {output_path}")
             remove_from_queue(queue_filename)
+            log_generation(filename, "success", cost, provider, quality, aspect_ratio)
 
         except Exception as e:
             result = {"filename": filename, "status": "error", "error": str(e)}
             print(f"Error: {str(e)}")
+            log_generation(filename, f"error: {str(e)[:50]}", None, provider, quality, aspect_ratio)
 
         results.append(result)
 

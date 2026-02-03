@@ -18,6 +18,7 @@ import base64
 import requests
 import subprocess
 from datetime import datetime
+from batch_generate import log_generation, get_cost_from_log
 
 # --- Configuration ---
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
@@ -585,6 +586,8 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         result["style_hint"] = style_hint
     if cost is not None:
         result["estimated_cost_usd"] = cost
+    # Log the generation
+    log_generation(os.path.basename(filename), "success", cost, provider, quality, aspect_ratio)
     return result
 
 def add_to_batch(prompt, filename=None, aspect_ratio="16:9", image_size="large", description="", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general"):
@@ -932,6 +935,19 @@ def handle_tools_list(request_id):
                         },
                         "required": ["wp_url"]
                     }
+                },
+                {
+                    "name": "get_generation_cost",
+                    "description": "Query cost information from the generation log. Search by filename or date range. Returns matching records and total cost for auditing and cost tracking.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {"type": "string", "description": "Image filename (with or without .png extension) to look up"},
+                            "start_datetime": {"type": "string", "description": "Start of date range (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"},
+                            "end_datetime": {"type": "string", "description": "End of date range (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"}
+                        },
+                        "required": []
+                    }
                 }
             ]
         }
@@ -1002,6 +1018,12 @@ def handle_tool_call(request_id, tool_name, arguments):
                 arguments.get("wp_url"),
                 arguments.get("directory", "batch"),
                 arguments.get("limit", 10)
+            )
+        elif tool_name == "get_generation_cost":
+            result = get_cost_from_log(
+                arguments.get("filename"),
+                arguments.get("start_datetime"),
+                arguments.get("end_datetime")
             )
         else:
             raise Exception(f"Unknown tool: {tool_name}")
