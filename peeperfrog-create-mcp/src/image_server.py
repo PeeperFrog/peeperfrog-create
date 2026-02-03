@@ -455,7 +455,6 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
         "size": size,
         "quality": openai_quality,
         "n": 1,
-        "output_format": "png",
     }
 
     response = requests.post(
@@ -470,7 +469,18 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
         raise Exception(f"OpenAI API error: {response.status_code} - {response.text}")
 
     data = response.json()
-    image_data = data['data'][0]['b64_json']
+
+    # gpt-image-1 returns URLs (response_format not supported), download and convert to base64
+    image_url = data['data'][0].get('url')
+    if image_url:
+        img_response = requests.get(image_url)
+        if img_response.status_code != 200:
+            raise Exception(f"Failed to download image from OpenAI URL: {img_response.status_code}")
+        image_data = base64.b64encode(img_response.content).decode('utf-8')
+    else:
+        # Fallback for b64_json if ever supported in future
+        image_data = data['data'][0].get('b64_json')
+
     if not image_data:
         raise Exception("No image data in OpenAI API response")
 
