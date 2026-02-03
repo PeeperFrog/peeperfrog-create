@@ -20,9 +20,12 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "co
 def load_config():
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
+    config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
     for key in ("images_dir", "batch_manager_script"):
         if key in cfg:
             cfg[key] = os.path.expanduser(cfg[key])
+            if not os.path.isabs(cfg[key]):
+                cfg[key] = os.path.join(config_dir, cfg[key])
     return cfg
 
 CFG = load_config()

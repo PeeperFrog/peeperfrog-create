@@ -15,7 +15,10 @@ CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "co
 def load_config():
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
+    config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
     cfg["images_dir"] = os.path.expanduser(cfg["images_dir"])
+    if not os.path.isabs(cfg["images_dir"]):
+        cfg["images_dir"] = os.path.join(config_dir, cfg["images_dir"])
     cfg["queue_file"] = os.path.join(cfg["images_dir"], cfg.get("queue_filename", "batch_queue.json"))
     return cfg
 
