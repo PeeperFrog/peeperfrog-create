@@ -113,6 +113,8 @@ Bold text design with quote "Start before you're ready", modern typography, vibr
 
 ## Aspect Ratio Guide
 
+Any aspect ratio is supported (e.g., `21:9`, `2.35:1`, `3:2`). OpenAI picks the closest match from its fixed sizes.
+
 | Ratio | Use for |
 |-------|---------|
 | 16:9 | Website heroes, blog headers, video thumbnails |
@@ -120,6 +122,10 @@ Bold text design with quote "Start before you're ready", modern typography, vibr
 | 9:16 | Stories, mobile graphics, vertical video |
 | 4:3 | Presentations, traditional photography |
 | 3:4 | Portrait photography, print materials |
+| 21:9 | Ultrawide banners, cinematic headers |
+| 2.35:1 | Cinemascope, film-style compositions |
+| 3:2 | Classic photography, DSLR native ratio |
+| 1.91:1 | Facebook/LinkedIn link previews |
 
 ---
 

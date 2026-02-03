@@ -107,7 +107,7 @@ peeperfrog-create:generate_image({
 | `provider` | "gemini", "openai", "together" | "gemini" | Ignored if `model` is set |
 | `quality` | "pro", "fast" | "pro" | Ignored if `model` is set |
 | `model` | Any Together alias | none | Overrides provider/quality |
-| `aspect_ratio` | "1:1", "16:9", "9:16", "4:3", "3:4" | "1:1" | |
+| `aspect_ratio` | Any ratio (e.g., "1:1", "16:9", "21:9", "2.35:1") | "1:1" | OpenAI uses closest match |
 | `image_size` | "small", "medium", "large", "xlarge" | "large" | Gemini Fast always 1K |
 
 ## Reference Images (Gemini Pro Only)

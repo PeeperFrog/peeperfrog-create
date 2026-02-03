@@ -65,7 +65,7 @@ peeperfrog-create:add_to_batch({
 | `provider` | string | No | "gemini" | Manual provider: "gemini", "openai", "together" |
 | `quality` | string | No | "pro" | Manual quality: "pro" or "fast" |
 | `model` | string | No | none | Specific Together AI model alias |
-| `aspect_ratio` | string | No | "16:9" | "1:1", "16:9", "9:16", "4:3", "3:4" |
+| `aspect_ratio` | string | No | "16:9" | Any ratio (e.g., "1:1", "16:9", "21:9", "2.35:1"). OpenAI uses closest match. |
 | `image_size` | string | No | "large" | "small", "medium", "large", "xlarge" |
 | `reference_image` | string | No | none | Path to a single reference image |
 | `reference_images` | array | No | none | Array of reference image paths (max 14) |

@@ -33,7 +33,7 @@ peeperfrog-create:estimate_image_cost({
 |-----------|------|----------|---------|-------------|
 | `provider` | string | No | "gemini" | Provider: "gemini", "openai", "together" |
 | `quality` | string | No | "pro" | Quality tier: "pro" or "fast" |
-| `aspect_ratio` | string | No | "1:1" | "1:1", "16:9", "9:16", "4:3", "3:4" |
+| `aspect_ratio` | string | No | "1:1" | Any ratio (e.g., "1:1", "16:9", "21:9", "2.35:1"). OpenAI uses closest match. |
 | `image_size` | string | No | "large" | "small", "medium", "large", "xlarge" |
 | `num_reference_images` | integer | No | 0 | Number of reference images (Gemini Pro only, max 14) |
 | `search_grounding` | boolean | No | false | Whether Google Search grounding will be used |

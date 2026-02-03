@@ -58,7 +58,7 @@ Tells the selector which quality dimension to prioritize:
 All standard parameters still work alongside auto_mode:
 
 - `prompt` (required): Image description
-- `aspect_ratio`: "1:1", "16:9", "9:16", "4:3", "3:4" (default: "1:1")
+- `aspect_ratio`: Any ratio supported (e.g., "1:1", "16:9", "21:9", "2.35:1"). OpenAI uses closest match. (default: "1:1")
 - `image_size`: "small", "medium", "large", "xlarge" (default: "large")
 - `reference_image` / `reference_images`: Reference image paths (constrains to models with reference support)
 - `search_grounding`: Enable Google Search grounding (constrains to Gemini Pro)
