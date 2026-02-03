@@ -100,9 +100,13 @@ def remove_from_queue(identifier):
         removed_files = [removed["filename"]]
     except ValueError:
         filename = str(identifier)
+        # Normalize: strip .png extension for comparison
+        search_name = filename[:-4] if filename.endswith('.png') else filename
         removed_files = []
         for i in reversed(range(len(queue["prompts"]))):
-            if queue["prompts"][i]["filename"] == filename:
+            queue_name = queue["prompts"][i]["filename"]
+            queue_name_norm = queue_name[:-4] if queue_name.endswith('.png') else queue_name
+            if queue_name_norm == search_name:
                 removed = queue["prompts"].pop(i)
                 removed_files.append(removed["filename"])
         if not removed_files:
