@@ -17,6 +17,58 @@ from datetime import datetime
 # Load config from same directory as this script
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
 
+# imagen-4 models only support fixed resolutions
+IMAGEN4_RESOLUTIONS = [
+    (1024, 1024),   # 1:1 square
+    (2048, 2048),   # 1:1 square large
+    (768, 1408),    # 9:16 portrait
+    (1536, 2816),   # 9:16 portrait large
+    (1408, 768),    # 16:9 landscape
+    (2816, 1536),   # 16:9 landscape large
+    (896, 1280),    # ~7:10 portrait
+    (1792, 2560),   # ~7:10 portrait large
+    (1280, 896),    # ~10:7 landscape
+    (2560, 1792),   # ~10:7 landscape large
+]
+
+def _parse_aspect_ratio(aspect_ratio):
+    """Parse aspect ratio string (e.g., '16:9', '2.35:1') into (width_ratio, height_ratio) floats."""
+    if ':' in aspect_ratio:
+        parts = aspect_ratio.split(':')
+        return float(parts[0]), float(parts[1])
+    return 1.0, 1.0
+
+def _get_imagen4_resolution(aspect_ratio, image_size):
+    """Find the closest imagen-4 supported resolution for the requested aspect ratio and size."""
+    w_ratio, h_ratio = _parse_aspect_ratio(aspect_ratio)
+    target_ratio = w_ratio / h_ratio
+
+    best_match = None
+    best_score = float('inf')
+
+    for w, h in IMAGEN4_RESOLUTIONS:
+        res_ratio = w / h
+        ratio_diff = abs(res_ratio - target_ratio)
+
+        # Calculate megapixels
+        mp = w * h / 1_000_000
+
+        # Size preference scoring
+        if image_size == "xlarge":
+            size_penalty = 0 if mp >= 3.0 else 0.8
+        elif image_size == "large":
+            size_penalty = 0 if 0.8 <= mp <= 2.0 else 0.3
+        else:
+            size_penalty = 0 if mp <= 1.5 else 0.5
+
+        score = ratio_diff + size_penalty
+
+        if score < best_score:
+            best_score = score
+            best_match = (w, h)
+
+    return best_match
+
 def load_config():
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
@@ -355,15 +407,20 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, api_key, model
         model = PROVIDERS["together"]["models"][quality]
         steps = 4 if quality == "fast" else 28
 
-    ar_sizes = {
-        "1:1":  {"small": (512, 512),   "medium": (1024, 1024), "large": (1024, 1024), "xlarge": (2048, 2048)},
-        "16:9": {"small": (576, 320),    "medium": (1024, 576),  "large": (1024, 576),  "xlarge": (1920, 1080)},
-        "9:16": {"small": (320, 576),    "medium": (576, 1024),  "large": (576, 1024),  "xlarge": (1080, 1920)},
-        "4:3":  {"small": (512, 384),    "medium": (1024, 768),  "large": (1024, 768),  "xlarge": (2048, 1536)},
-        "3:4":  {"small": (384, 512),    "medium": (768, 1024),  "large": (768, 1024),  "xlarge": (1536, 2048)},
-    }
-    sizes = ar_sizes.get(aspect_ratio, ar_sizes["1:1"])
-    width, height = sizes.get(image_size, sizes["large"])
+    # imagen-4 models require specific fixed resolutions
+    is_imagen4 = model_alias and model_alias.startswith("imagen4")
+    if is_imagen4:
+        width, height = _get_imagen4_resolution(aspect_ratio, image_size)
+    else:
+        ar_sizes = {
+            "1:1":  {"small": (512, 512),   "medium": (1024, 1024), "large": (1024, 1024), "xlarge": (2048, 2048)},
+            "16:9": {"small": (576, 320),    "medium": (1024, 576),  "large": (1024, 576),  "xlarge": (1920, 1080)},
+            "9:16": {"small": (320, 576),    "medium": (576, 1024),  "large": (576, 1024),  "xlarge": (1080, 1920)},
+            "4:3":  {"small": (512, 384),    "medium": (1024, 768),  "large": (1024, 768),  "xlarge": (2048, 1536)},
+            "3:4":  {"small": (384, 512),    "medium": (768, 1024),  "large": (768, 1024),  "xlarge": (1536, 2048)},
+        }
+        sizes = ar_sizes.get(aspect_ratio, ar_sizes["1:1"])
+        width, height = sizes.get(image_size, sizes["large"])
 
     payload = {
         "model": model, "prompt": prompt, "width": width, "height": height,
