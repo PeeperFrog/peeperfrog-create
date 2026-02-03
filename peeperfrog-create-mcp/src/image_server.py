@@ -26,10 +26,13 @@ def load_config():
     """Load configuration from config.json next to this script"""
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
-    # Expand ~ in all path values
+    # Expand ~ and resolve relative paths against config directory
+    config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
     for key in ("images_dir", "batch_manager_script", "batch_generate_script", "webp_convert_script"):
         if key in cfg:
             cfg[key] = os.path.expanduser(cfg[key])
+            if not os.path.isabs(cfg[key]):
+                cfg[key] = os.path.join(config_dir, cfg[key])
     # Derived paths
     cfg["batch_dir"] = os.path.join(cfg["images_dir"], cfg.get("batch_subdir", "batch"))
     cfg["queue_file"] = os.path.join(cfg["images_dir"], cfg.get("queue_filename", "batch_queue.json"))
@@ -50,6 +53,89 @@ def load_pricing():
         return None
 
 PRICING = load_pricing()
+
+# --- Aspect Ratio Utilities ---
+
+def parse_aspect_ratio(aspect_ratio):
+    """Parse aspect ratio string (e.g., '16:9', '21:9', '2.35:1') into (width_ratio, height_ratio) floats."""
+    if not aspect_ratio or ":" not in aspect_ratio:
+        return (1.0, 1.0)
+    try:
+        parts = aspect_ratio.split(":")
+        w = float(parts[0])
+        h = float(parts[1])
+        if w <= 0 or h <= 0:
+            return (1.0, 1.0)
+        return (w, h)
+    except (ValueError, IndexError):
+        return (1.0, 1.0)
+
+def calculate_dimensions(aspect_ratio, image_size, max_dimension=None):
+    """Calculate pixel dimensions for any aspect ratio and size tier.
+
+    Args:
+        aspect_ratio: String like '16:9', '21:9', '3:2', etc.
+        image_size: 'small', 'medium', 'large', 'xlarge'
+        max_dimension: Optional max for the largest side (overrides size tier)
+
+    Returns:
+        (width, height) tuple of integers
+    """
+    # Base dimensions for the largest side at each size tier
+    size_bases = {
+        "small": 512,
+        "medium": 1024,
+        "large": 1024,
+        "xlarge": 2048
+    }
+    base = max_dimension or size_bases.get(image_size, 1024)
+
+    w_ratio, h_ratio = parse_aspect_ratio(aspect_ratio)
+
+    if w_ratio >= h_ratio:
+        # Landscape or square: width is the base
+        width = base
+        height = int(round(base * h_ratio / w_ratio))
+    else:
+        # Portrait: height is the base
+        height = base
+        width = int(round(base * w_ratio / h_ratio))
+
+    # Ensure dimensions are multiples of 8 (common requirement for image models)
+    width = max(64, (width // 8) * 8)
+    height = max(64, (height // 8) * 8)
+
+    return (width, height)
+
+def find_closest_openai_size(aspect_ratio):
+    """Find the closest supported OpenAI size for a given aspect ratio.
+
+    OpenAI gpt-image-1 supports: 1024x1024, 1536x1024, 1024x1536
+
+    Returns:
+        (size_string, actual_ratio) - e.g., ("1536x1024", "3:2")
+    """
+    w_ratio, h_ratio = parse_aspect_ratio(aspect_ratio)
+    target_ratio = w_ratio / h_ratio
+
+    # OpenAI supported sizes and their ratios
+    sizes = [
+        ("1024x1024", 1.0),      # 1:1
+        ("1536x1024", 1.5),      # 3:2 (landscape)
+        ("1024x1536", 0.667),    # 2:3 (portrait)
+    ]
+
+    # Find closest match
+    best_size = "1024x1024"
+    best_diff = float('inf')
+
+    for size_str, ratio in sizes:
+        diff = abs(target_ratio - ratio)
+        if diff < best_diff:
+            best_diff = diff
+            best_size = size_str
+
+    return best_size
 
 def estimate_cost(provider, quality, image_size, aspect_ratio, num_reference_images=0, search_grounding=False, thinking_level=None, model_alias=None):
     """Estimate cost in USD for a single image generation. Returns None if pricing unavailable."""
@@ -78,8 +164,7 @@ def estimate_cost(provider, quality, image_size, aspect_ratio, num_reference_ima
 
     elif provider == "openai":
         openai_quality = "high" if quality == "pro" else "low"
-        ar_map = {"1:1": "1024x1024", "16:9": "1536x1024", "9:16": "1024x1536", "4:3": "1536x1024", "3:4": "1024x1536"}
-        resolution = ar_map.get(aspect_ratio, "1024x1024")
+        resolution = find_closest_openai_size(aspect_ratio)
         model_key = PROVIDERS["openai"]["models"][quality]
         model_pricing = providers.get("openai", {}).get("models", {}).get(model_key, {})
         if not model_pricing:
@@ -98,16 +183,8 @@ def estimate_cost(provider, quality, image_size, aspect_ratio, num_reference_ima
             if not model_pricing:
                 return None
             per_mp = model_pricing.get("per_megapixel_cost", 0)
-        # Calculate resolution from aspect_ratio + image_size
-        ar_sizes = {
-            "1:1":  {"small": (512, 512),   "medium": (1024, 1024), "large": (1024, 1024), "xlarge": (2048, 2048)},
-            "16:9": {"small": (576, 320),    "medium": (1024, 576),  "large": (1024, 576),  "xlarge": (1920, 1080)},
-            "9:16": {"small": (320, 576),    "medium": (576, 1024),  "large": (576, 1024),  "xlarge": (1080, 1920)},
-            "4:3":  {"small": (512, 384),    "medium": (1024, 768),  "large": (1024, 768),  "xlarge": (2048, 1536)},
-            "3:4":  {"small": (384, 512),    "medium": (768, 1024),  "large": (768, 1024),  "xlarge": (1536, 2048)},
-        }
-        sizes = ar_sizes.get(aspect_ratio, ar_sizes["1:1"])
-        width, height = sizes.get(image_size, sizes["large"])
+        # Calculate dimensions from any aspect ratio
+        width, height = calculate_dimensions(aspect_ratio, image_size)
         return round((width * height / 1_000_000) * per_mp, 6)
 
     return None
@@ -366,15 +443,8 @@ def _generate_openai(prompt, aspect_ratio, image_size, quality):
     api_key = _get_api_key("openai")
     model = PROVIDERS["openai"]["models"][quality]
 
-    # Map aspect_ratio to OpenAI size strings
-    size_map = {
-        "1:1": "1024x1024",
-        "16:9": "1536x1024",
-        "9:16": "1024x1536",
-        "4:3": "1536x1024",
-        "3:4": "1024x1536",
-    }
-    size = size_map.get(aspect_ratio, "1024x1024")
+    # OpenAI only supports 3 fixed sizes - find closest match for any aspect ratio
+    size = find_closest_openai_size(aspect_ratio)
 
     openai_quality = "high" if quality == "pro" else "low"
 
@@ -419,16 +489,8 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, model_alias=No
         model = PROVIDERS["together"]["models"][quality]
         steps = 4 if quality == "fast" else 28
 
-    # Map aspect_ratio + image_size to width/height
-    ar_sizes = {
-        "1:1":  {"small": (512, 512),   "medium": (1024, 1024), "large": (1024, 1024), "xlarge": (2048, 2048)},
-        "16:9": {"small": (576, 320),    "medium": (1024, 576),  "large": (1024, 576),  "xlarge": (1920, 1080)},
-        "9:16": {"small": (320, 576),    "medium": (576, 1024),  "large": (576, 1024),  "xlarge": (1080, 1920)},
-        "4:3":  {"small": (512, 384),    "medium": (1024, 768),  "large": (1024, 768),  "xlarge": (2048, 1536)},
-        "3:4":  {"small": (384, 512),    "medium": (768, 1024),  "large": (768, 1024),  "xlarge": (1536, 2048)},
-    }
-    sizes = ar_sizes.get(aspect_ratio, ar_sizes["1:1"])
-    width, height = sizes.get(image_size, sizes["large"])
+    # Calculate dimensions from any aspect ratio
+    width, height = calculate_dimensions(aspect_ratio, image_size)
 
     payload = {
         "model": model,
@@ -754,7 +816,7 @@ def handle_tools_list(request_id):
                         "properties": {
                             "prompt": {"type": "string", "description": "Text description of the image to generate"},
                             "provider": {"type": "string", "description": "Image generation provider: 'gemini' (default), 'openai', or 'together'", "enum": PROVIDER_ENUM, "default": "gemini"},
-                            "aspect_ratio": {"type": "string", "description": "Aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4)", "default": "1:1"},
+                            "aspect_ratio": {"type": "string", "description": "Aspect ratio - any format supported (e.g., 1:1, 16:9, 21:9, 2.35:1, 3:2). OpenAI uses closest match from fixed sizes.", "default": "1:1"},
                             "image_size": {"type": "string", "description": "Image resolution: 'small', 'medium', 'large' (default), 'xlarge'", "enum": ["small", "medium", "large", "xlarge"], "default": "large"},
                             "quality": {"type": "string", "description": "Quality tier: 'pro' (high quality) or 'fast' (cheaper/quicker)", "enum": ["pro", "fast"], "default": "pro"},
                             "reference_image": {"type": "string", "description": "Optional single reference image file path (Gemini pro mode only)"},
@@ -783,7 +845,7 @@ def handle_tools_list(request_id):
                             "prompt": {"type": "string", "description": "Text description of the image to generate"},
                             "provider": {"type": "string", "description": "Image generation provider: 'gemini' (default), 'openai', or 'together'", "enum": PROVIDER_ENUM, "default": "gemini"},
                             "filename": {"type": "string", "description": "Optional filename for the image"},
-                            "aspect_ratio": {"type": "string", "description": "Aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4)", "default": "16:9"},
+                            "aspect_ratio": {"type": "string", "description": "Aspect ratio - any format supported (e.g., 1:1, 16:9, 21:9, 2.35:1, 3:2). OpenAI uses closest match from fixed sizes.", "default": "16:9"},
                             "image_size": {"type": "string", "description": "Image resolution: 'small', 'medium', 'large' (default), 'xlarge'", "enum": ["small", "medium", "large", "xlarge"], "default": "large"},
                             "quality": {"type": "string", "description": "Quality tier: 'pro' (default) or 'fast'", "enum": ["pro", "fast"], "default": "pro"},
                             "description": {"type": "string", "description": "Optional description/note for this image"},
@@ -833,7 +895,7 @@ def handle_tools_list(request_id):
                         "properties": {
                             "provider": {"type": "string", "description": "Image generation provider: 'gemini' (default), 'openai', or 'together'", "enum": PROVIDER_ENUM, "default": "gemini"},
                             "quality": {"type": "string", "description": "Quality tier: 'pro' or 'fast'", "enum": ["pro", "fast"], "default": "pro"},
-                            "aspect_ratio": {"type": "string", "description": "Aspect ratio (1:1, 16:9, 9:16, 4:3, 3:4)", "default": "1:1"},
+                            "aspect_ratio": {"type": "string", "description": "Aspect ratio - any format supported (e.g., 1:1, 16:9, 21:9, 2.35:1, 3:2). OpenAI uses closest match from fixed sizes.", "default": "1:1"},
                             "image_size": {"type": "string", "description": "Image resolution: 'small', 'medium', 'large', 'xlarge'", "enum": ["small", "medium", "large", "xlarge"], "default": "large"},
                             "num_reference_images": {"type": "integer", "description": "Number of reference images (Gemini pro only)", "default": 0, "minimum": 0, "maximum": MAX_REF_IMAGES},
                             "search_grounding": {"type": "boolean", "description": "Whether Google Search grounding will be used (Gemini only)", "default": False},
