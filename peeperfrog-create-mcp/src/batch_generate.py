@@ -342,7 +342,7 @@ def _generate_gemini(prompt, aspect_ratio, image_size, quality, reference_images
     opts = gemini_opts or {}
 
     if opts.get("media_resolution"):
-        generation_config["mediaResolution"] = opts["media_resolution"].upper()
+        generation_config["mediaResolution"] = f"MEDIA_RESOLUTION_{opts['media_resolution'].upper()}"
 
     if opts.get("thinking_level") and quality == "pro":
         generation_config["thinkingConfig"] = {"thinkingLevel": opts["thinking_level"].lower()}

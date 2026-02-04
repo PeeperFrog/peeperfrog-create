@@ -479,9 +479,9 @@ def _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, searc
         "imageConfig": image_config
     }
 
-    # Media resolution control (LOW, MEDIUM, HIGH, AUTO)
+    # Media resolution control (MEDIA_RESOLUTION_LOW, MEDIA_RESOLUTION_MEDIUM, MEDIA_RESOLUTION_HIGH)
     if media_resolution:
-        generation_config["mediaResolution"] = media_resolution.upper()
+        generation_config["mediaResolution"] = f"MEDIA_RESOLUTION_{media_resolution.upper()}"
 
     # Thinking level (Gemini 3 Pro: minimal, low, medium, high)
     if thinking_level and quality == "pro":
@@ -936,7 +936,7 @@ def handle_tools_list(request_id):
                             },
                             "search_grounding": {"type": "boolean", "description": "Enable Google Search grounding for factually accurate images (Gemini only). Uses real-time data for current events, real places, etc.", "default": False},
                             "thinking_level": {"type": "string", "description": "Thinking/reasoning depth for complex compositions (Gemini Pro only): 'minimal', 'low', 'medium', 'high'", "enum": ["minimal", "low", "medium", "high"]},
-                            "media_resolution": {"type": "string", "description": "Media resolution control for input processing (Gemini only): 'low', 'medium', 'high', 'auto'", "enum": ["low", "medium", "high", "auto"]},
+                            "media_resolution": {"type": "string", "description": "Media resolution control for input processing (Gemini only): 'low', 'medium', 'high'", "enum": ["low", "medium", "high"]},
                             "model": {"type": "string", "description": "Together AI model alias. Overrides provider/quality. Options: " + ", ".join(TOGETHER_MODEL_ALIASES), "enum": TOGETHER_MODEL_ALIASES},
                             "auto_mode": {"type": "string", "description": "Auto-select the best model based on cost tier and constraints. Overrides provider/quality/model. Options: cheapest, budget, balanced, quality, best", "enum": AUTO_MODE_ENUM},
                             "style_hint": {"type": "string", "description": "Style preference for auto_mode model selection: 'general' (default), 'photo' (photorealistic), 'illustration' (art/drawings), 'text' (text in image matters), 'infographic' (charts, graphs, data visualizations)", "enum": STYLE_HINT_ENUM, "default": "general"}
@@ -966,7 +966,7 @@ def handle_tools_list(request_id):
                             },
                             "search_grounding": {"type": "boolean", "description": "Enable Google Search grounding for factually accurate images (Gemini only)", "default": False},
                             "thinking_level": {"type": "string", "description": "Thinking/reasoning depth (Gemini Pro only): 'minimal', 'low', 'medium', 'high'", "enum": ["minimal", "low", "medium", "high"]},
-                            "media_resolution": {"type": "string", "description": "Media resolution control for input processing (Gemini only): 'low', 'medium', 'high', 'auto'", "enum": ["low", "medium", "high", "auto"]},
+                            "media_resolution": {"type": "string", "description": "Media resolution control for input processing (Gemini only): 'low', 'medium', 'high'", "enum": ["low", "medium", "high"]},
                             "model": {"type": "string", "description": "Together AI model alias. Overrides provider/quality. Options: " + ", ".join(TOGETHER_MODEL_ALIASES), "enum": TOGETHER_MODEL_ALIASES},
                             "auto_mode": {"type": "string", "description": "Auto-select the best model based on cost tier and constraints. Overrides provider/quality/model.", "enum": AUTO_MODE_ENUM},
                             "style_hint": {"type": "string", "description": "Style preference for auto_mode: 'general', 'photo', 'illustration', 'text', 'infographic'", "enum": STYLE_HINT_ENUM, "default": "general"}
