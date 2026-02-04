@@ -357,6 +357,10 @@ def _auto_select_model(auto_mode, style_hint="general", image_size="large", need
     if max_cost is None:
         raise Exception(f"Unknown auto_mode: {auto_mode}. Options: {', '.join(AUTO_MODE_TIERS.keys())}")
 
+    # Infographics require gemini-pro which costs $0.134 - override tier to 'best' to ensure it's included
+    if style_hint == "infographic" and max_cost < AUTO_MODE_TIERS["best"]:
+        max_cost = AUTO_MODE_TIERS["best"]
+
     required_size = SIZE_ORDER.get(image_size, 2)
     style_key = f"{style_hint}_quality" if style_hint in ("text", "photo", "illustration", "infographic") else "general_quality"
 
