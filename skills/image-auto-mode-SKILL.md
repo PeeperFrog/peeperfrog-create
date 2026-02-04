@@ -51,7 +51,8 @@ Tells the selector which quality dimension to prioritize:
 | `general` | No specific style needed | Best all-rounder at the tier |
 | `photo` | Photorealistic images, product shots, real-world scenes | seedream3/4, imagen4, flux2-pro, gemini-pro |
 | `illustration` | Art, drawings, stylized graphics, diagrams | flux2-pro/dev, imagen4-ultra, gemini-pro |
-| `text` | Text in image matters -- signs, labels, infographics, headlines | openai (fast/pro), ideogram3, imagen4 |
+| `text` | Text in image matters -- signs, labels, headlines | openai (fast/pro), ideogram3, imagen4 |
+| `infographic` | Charts, graphs, data visualizations, complex layouts with precise numbers | openai-pro, gemini-pro |
 
 ### Other parameters
 
@@ -77,7 +78,7 @@ All standard parameters still work alongside auto_mode:
 
 2. **Filter by cost:** Remove models above the tier's $/MP ceiling
 
-3. **Rank by style:** Sort remaining models by the relevant quality score (text/photo/illustration/general), then by cost (cheapest first among equal quality)
+3. **Rank by style:** Sort remaining models by the relevant quality score (text/photo/illustration/infographic/general), then by cost (cheapest first among equal quality)
 
 4. **Pick the top result**
 
@@ -142,6 +143,36 @@ peeperfrog-create:generate_image({
 // Likely picks: openai-fast (text_quality=3, $0.011/MP) if OPENAI_API_KEY set
 // Falls back to: flux1-schnell (text_quality=1) if only TOGETHER_API_KEY set
 ```
+
+### Infographic / Chart / Data Visualization
+
+For infographics, **clearly separate text that should appear on the image from design instructions**:
+
+```javascript
+peeperfrog-create:generate_image({
+  prompt: `Professional business infographic on clean white background.
+
+ACTUAL TEXT TO APPEAR ON IMAGE:
+- Title: "Q4 Revenue Growth"
+- Bar chart labels: "Oct: $2.1M", "Nov: $2.8M", "Dec: $3.4M"
+- Footer: "Source: Internal Analytics 2025"
+
+DESIGN INSTRUCTIONS (not text on image):
+Use blue/green corporate color palette. Clean sans-serif typography.
+Horizontal bar chart with labeled values. Professional business presentation style.`,
+  auto_mode: "best",
+  style_hint: "infographic",
+  aspect_ratio: "16:9"
+})
+// Picks: openai-pro or gemini-pro (infographic_quality=3)
+// These models handle complex layouts, precise numbers, and structured data best
+```
+
+**Infographic prompt tips:**
+- Use "ACTUAL TEXT TO APPEAR ON IMAGE:" section for all labels, numbers, titles
+- Use "DESIGN INSTRUCTIONS:" section for colors, style, layout guidance
+- Be explicit about chart types (bar, pie, line) and data values
+- Most diffusion models struggle with precise data viz -- use `style_hint: "infographic"` to route to capable models
 
 ### Large format, excludes small-only models
 

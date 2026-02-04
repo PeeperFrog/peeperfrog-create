@@ -41,7 +41,7 @@ peeperfrog-create:estimate_image_cost({
 | `count` | integer | No | 1 | Number of images to estimate (multiplies per-image cost) |
 | `model` | string | No | none | Together AI model alias (overrides provider/quality) |
 | `auto_mode` | string | No | none | Auto-select model: "cheapest", "budget", "balanced", "quality", "best" |
-| `style_hint` | string | No | "general" | Style for auto_mode: "general", "photo", "illustration", "text" |
+| `style_hint` | string | No | "general" | Style for auto_mode: "general", "photo", "illustration", "text", "infographic" |
 
 ---
 

@@ -61,7 +61,7 @@ peeperfrog-create:add_to_batch({
 | `prompt` | string | Yes | -- | Image generation prompt |
 | `filename` | string | No | auto-generated | Custom filename (without extension) |
 | `auto_mode` | string | No | none | Cost tier: "cheapest", "budget", "balanced", "quality", "best" |
-| `style_hint` | string | No | "general" | Style hint for auto_mode: "general", "photo", "illustration", "text" |
+| `style_hint` | string | No | "general" | Style hint for auto_mode: "general", "photo", "illustration", "text", "infographic" |
 | `provider` | string | No | "gemini" | Manual provider: "gemini", "openai", "together" |
 | `quality` | string | No | "pro" | Manual quality: "pro" or "fast" |
 | `model` | string | No | none | Specific Together AI model alias |

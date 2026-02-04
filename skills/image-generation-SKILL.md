@@ -27,7 +27,7 @@ peeperfrog-create:generate_image({
 ```
 
 - `auto_mode`: "cheapest", "budget", "balanced", "quality", "best"
-- `style_hint`: "general", "photo", "illustration", "text"
+- `style_hint`: "general", "photo", "illustration", "text", "infographic"
 - Automatically filters by constraints (size, references, grounding, API keys)
 - Best for most use cases
 
@@ -74,6 +74,7 @@ peeperfrog-create:generate_image({
 | Don't care which model, want good results | Auto mode: `auto_mode: "balanced"` |
 | Need cheapest possible | Auto mode: `auto_mode: "cheapest"` |
 | Text in image matters | Auto mode: `auto_mode: "balanced", style_hint: "text"` |
+| Charts/graphs/infographics | Auto mode: `auto_mode: "best", style_hint: "infographic"` |
 | Need reference images | Auto mode: `auto_mode: "quality"` + reference_image (routes to Gemini Pro) |
 | Need search grounding | Manual: `provider: "gemini", search_grounding: true` |
 | Need thinking levels | Manual: `provider: "gemini", thinking_level: "high"` |
