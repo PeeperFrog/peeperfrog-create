@@ -32,7 +32,7 @@ peeperfrog-create:add_to_batch({
 // Review the queue
 peeperfrog-create:view_batch_queue()
 
-// Generate all queued images
+// Generate all queued images (auto WebP conversion)
 peeperfrog-create:run_batch()
 ```
 
@@ -161,25 +161,73 @@ peeperfrog-create:remove_from_batch({ identifier: "productivity-social" })
 
 ### run_batch
 
-Generate all queued images. Images are generated sequentially with a delay between each to respect API rate limits.
+Generate all queued images. Images are generated sequentially with a delay between each to respect API rate limits. Each image is automatically converted to WebP by default. Optionally upload to WordPress after generation.
 
 ```javascript
+// Default: auto WebP conversion at quality 85
 peeperfrog-create:run_batch()
+
+// Custom WebP quality
+peeperfrog-create:run_batch({ webp_quality: 90 })
+
+// Skip WebP conversion (PNG only)
+peeperfrog-create:run_batch({ convert_to_webp: false })
+
+// Generate and upload to WordPress in one step
+peeperfrog-create:run_batch({
+  upload_to_wordpress: true,
+  wp_url: "https://yoursite.com"
+})
 ```
 
-No parameters required. Uses the queue file and batch output directory from `config.json`.
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `convert_to_webp` | boolean | No | true | Convert each image to WebP after generation |
+| `webp_quality` | integer | No | 85 | WebP quality (0-100) when convert_to_webp is enabled |
+| `upload_to_wordpress` | boolean | No | false | Upload images to WordPress after generation |
+| `wp_url` | string | If uploading | -- | WordPress site URL (must match a key in config.json `wordpress` section) |
 
 **Response:**
 
 ```json
 {
   "success": true,
+  "files": [
+    "/path/to/webp/productivity-hero.webp",
+    "/path/to/webp/productivity-social.webp"
+  ],
+  "summary": {
+    "count": 2,
+    "total_size_bytes": 90000,
+    "webp_converted": 2
+  },
   "output": "Generated 2 images:\n  productivity-hero.png (balanced/flux2-pro)\n  productivity-social.png (budget/hidream-fast)\n",
   "error": null
 }
 ```
 
-Generated images are saved to the `batch` subdirectory within your configured `images_dir`.
+**Response with WordPress upload:**
+
+```json
+{
+  "success": true,
+  "files": ["/path/to/webp/productivity-hero.webp", "/path/to/webp/productivity-social.webp"],
+  "summary": {"count": 2, "total_size_bytes": 90000, "webp_converted": 2},
+  "wordpress_upload": {
+    "uploaded": [
+      {"filename": "productivity-hero.webp", "media_id": 1234, "url": "https://yoursite.com/wp-content/uploads/2026/02/productivity-hero.webp"},
+      {"filename": "productivity-social.webp", "media_id": 1235, "url": "https://yoursite.com/wp-content/uploads/2026/02/productivity-social.webp"}
+    ],
+    "failed": [],
+    "total_uploaded": 2,
+    "total_failed": 0
+  }
+}
+```
+
+The `batch_results.json` file is also updated with `wordpress_url` and `wordpress_media_id` for each image.
+
+PNG images are saved to the `batch` subdirectory. WebP files are saved to the `webp` subdirectory (configurable via `webp_subdir` in `config.json`).
 
 ---
 
@@ -231,7 +279,7 @@ peeperfrog-create:add_to_batch({ prompt: "Image C - corrected", filename: "c" })
 peeperfrog-create:run_batch()
 ```
 
-### Full pipeline: queue, generate, convert, upload
+### Full pipeline: queue, generate, upload
 
 ```javascript
 // Queue images
@@ -249,13 +297,22 @@ peeperfrog-create:add_to_batch({
   filename: "blog-thumb"
 })
 
-// Generate
+// Generate and upload to WordPress in one step
+peeperfrog-create:run_batch({
+  upload_to_wordpress: true,
+  wp_url: "https://yoursite.com"
+})
+// Returns wordpress_url and wordpress_media_id for each image
+// Also updates batch_results.json with WordPress metadata
+```
+
+Alternatively, generate first and upload separately:
+
+```javascript
+// Generate (WebP conversion is automatic)
 peeperfrog-create:run_batch()
 
-// Convert to WebP
-peeperfrog-create:convert_to_webp({ quality: 85 })
-
-// Upload to WordPress
+// Upload to WordPress later
 peeperfrog-create:upload_to_wordpress({ wp_url: "https://yoursite.com" })
 ```
 

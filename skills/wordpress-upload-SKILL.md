@@ -10,8 +10,8 @@ description: Upload generated WebP images to WordPress media library. Credential
 **Use this skill when:** You want to publish generated images to WordPress.
 
 **Prerequisites:**
-- Images must be converted to WebP first (use **webp-conversion** skill)
 - WordPress credentials must be configured in `config.json`
+- Images are auto-converted to WebP during generation (default behavior)
 
 ---
 
@@ -37,30 +37,35 @@ Add a `wordpress` section to your `config.json` (in the `peeperfrog-create-mcp/`
   "wordpress": {
     "https://yoursite.com": {
       "user": "your-wordpress-username",
-      "password": "xxxx xxxx xxxx xxxx xxxx xxxx"
+      "password": "xxxx xxxx xxxx xxxx xxxx xxxx",
+      "alt_text_prefix": "AI-generated image: "
     }
   }
 }
 ```
 
-You can configure multiple sites:
+You can configure multiple sites with different alt text prefixes:
 
 ```json
 {
   "wordpress": {
     "https://site-one.com": {
       "user": "admin",
-      "password": "app-password-for-site-one"
+      "password": "app-password-for-site-one",
+      "alt_text_prefix": "Site One: "
     },
     "https://site-two.com": {
       "user": "editor",
-      "password": "app-password-for-site-two"
+      "password": "app-password-for-site-two",
+      "alt_text_prefix": ""
     }
   }
 }
 ```
 
 The URL must match exactly what you pass to the tool (trailing slashes are normalized automatically).
+
+**Alt text:** When uploading, the alt text is automatically generated from the filename (replacing `-` and `_` with spaces) and prefixed with `alt_text_prefix` if configured. For example, a file `hero-mountain-sunset.webp` with prefix `"AI-generated: "` becomes alt text `"AI-generated: hero mountain sunset"`.
 
 ---
 
@@ -86,27 +91,24 @@ peeperfrog-create:upload_to_wordpress({
 })
 ```
 
-### Full workflow: generate, convert, upload
+### Generate and upload in one call
+
+The easiest way -- generate, convert to WebP, and upload all in one step:
 
 ```javascript
-// 1. Generate images
 peeperfrog-create:generate_image({
   prompt: "Blog hero image, mountain landscape at golden hour",
   auto_mode: "balanced",
   style_hint: "photo",
-  aspect_ratio: "16:9"
-})
-
-// 2. Convert to WebP
-peeperfrog-create:convert_to_webp({ quality: 85 })
-
-// 3. Upload to WordPress
-peeperfrog-create:upload_to_wordpress({
+  aspect_ratio: "16:9",
+  upload_to_wordpress: true,
   wp_url: "https://yoursite.com"
 })
 ```
 
-### Batch workflow
+Response includes `wordpress_url` and `wordpress_media_id` for immediate use.
+
+### Batch workflow with auto-upload
 
 ```javascript
 // Queue multiple images
@@ -124,15 +126,24 @@ peeperfrog-create:add_to_batch({
   filename: "social-20260202-120001"
 })
 
-// Generate all
-peeperfrog-create:run_batch()
-
-// Convert to WebP
-peeperfrog-create:convert_to_webp({ quality: 85 })
-
-// Upload all to WordPress
-peeperfrog-create:upload_to_wordpress({
+// Generate all and upload to WordPress
+peeperfrog-create:run_batch({
+  upload_to_wordpress: true,
   wp_url: "https://yoursite.com"
+})
+```
+
+The `batch_results.json` file is updated with `wordpress_url` and `wordpress_media_id` for each image.
+
+### Upload existing images separately
+
+If you generated images earlier without uploading:
+
+```javascript
+peeperfrog-create:upload_to_wordpress({
+  wp_url: "https://yoursite.com",
+  directory: "batch",
+  limit: 10
 })
 ```
 
@@ -140,35 +151,114 @@ peeperfrog-create:upload_to_wordpress({
 
 ## Parameters
 
+### For `generate_image` and `run_batch`
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `upload_to_wordpress` | boolean | No | false | Upload image(s) to WordPress after generation |
+| `wp_url` | string | If uploading | -- | WordPress site URL. Must match a key in config.json `wordpress` section. |
+
+### For `upload_to_wordpress` (standalone tool)
+
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `wp_url` | string | Yes | -- | WordPress site URL. Must match a key in config.json `wordpress` section. |
 | `directory` | string | No | "batch" | Subdirectory within `images_dir` to scan for WebP files. |
 | `limit` | integer | No | 10 | Maximum number of images to upload. |
 
+### For `get_media_id_map`
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `directory` | string | No | "batch" | Subdirectory to scan for metadata. |
+| `output_format` | string | No | "json" | Output format: "json", "yaml", or "python_dict". |
+
 ---
 
-## Response
+## Response Examples
+
+### generate_image with upload
 
 ```json
 {
   "success": true,
-  "uploaded": [
-    {
-      "filename": "hero-20260202-120000.webp",
-      "media_id": 1234,
-      "url": "https://yoursite.com/wp-content/uploads/2026/02/hero-20260202-120000.webp",
-      "title": "hero-20260202-120000"
+  "image_path": "/path/to/generated_image.png",
+  "webp_path": "/path/to/webp/generated_image.webp",
+  "wordpress_url": "https://yoursite.com/wp-content/uploads/2026/02/generated_image.webp",
+  "wordpress_media_id": 1234,
+  "wordpress_upload": {
+    "success": true,
+    "filename": "generated_image.webp",
+    "media_id": 1234,
+    "url": "https://yoursite.com/wp-content/uploads/2026/02/generated_image.webp",
+    "title": "generated_image",
+    "alt_text": "AI-generated image: generated image"
+  }
+}
+```
+
+### run_batch with upload
+
+```json
+{
+  "success": true,
+  "files": ["/path/to/webp/hero.webp", "/path/to/webp/social.webp"],
+  "summary": {"count": 2, "total_size_bytes": 90000, "webp_converted": 2},
+  "wordpress_upload": {
+    "uploaded": [
+      {"filename": "hero.webp", "media_id": 1234, "url": "https://...", "alt_text": "AI-generated image: hero"},
+      {"filename": "social.webp", "media_id": 1235, "url": "https://...", "alt_text": "AI-generated image: social"}
+    ],
+    "failed": [],
+    "total_uploaded": 2,
+    "total_failed": 0
+  }
+}
+```
+
+The `batch_results.json` file is also updated with `wordpress_url` and `wordpress_media_id` for each image.
+
+### get_media_id_map
+
+Get metadata without downloading image data -- useful for setting featured images:
+
+```javascript
+peeperfrog-create:get_media_id_map({
+  directory: "batch",
+  output_format: "json"
+})
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "format": "json",
+  "count": 2,
+  "media_map": {
+    "hero.webp": {
+      "file_path": "/path/to/webp/hero.webp",
+      "file_size": 45000,
+      "modified_time": "2026-02-05 10:30:00",
+      "wordpress_media_id": 1234,
+      "wordpress_url": "https://yoursite.com/wp-content/uploads/2026/02/hero.webp",
+      "provider": "gemini",
+      "aspect_ratio": "16:9"
+    },
+    "social.webp": {
+      "file_path": "/path/to/webp/social.webp",
+      "file_size": 25000,
+      "modified_time": "2026-02-05 10:31:00",
+      "wordpress_media_id": 1235,
+      "wordpress_url": "https://yoursite.com/wp-content/uploads/2026/02/social.webp"
     }
-  ],
-  "failed": [],
-  "total": 1
+  }
 }
 ```
 
 - `media_id`: WordPress media library ID -- use this to set featured images on posts
 - `url`: Public URL of the uploaded image
-- Images are uploaded in order of most recently modified first
 
 ---
 
@@ -181,7 +271,7 @@ peeperfrog-create:upload_to_wordpress({
 | HTTP 401 | Bad credentials | Regenerate the application password in WordPress |
 | HTTP 403 | Insufficient permissions | User needs `upload_files` capability (Editor or Admin role) |
 | HTTP 413 | File too large | Increase `upload_max_filesize` in WordPress PHP config |
-| No .webp files found | Images not converted | Run `convert_to_webp` first |
+| No .webp files found | Images not converted | Ensure `convert_to_webp: true` (default) when generating |
 
 ---
 

@@ -109,6 +109,8 @@ peeperfrog-create:generate_image({
 | `model` | Any Together alias | none | Overrides provider/quality |
 | `aspect_ratio` | Any ratio (e.g., "1:1", "16:9", "21:9", "2.35:1") | "1:1" | OpenAI uses closest match |
 | `image_size` | "small", "medium", "large", "xlarge" | "large" | Gemini Fast always 1K |
+| `convert_to_webp` | boolean | true | Auto-convert to WebP after generation |
+| `webp_quality` | 0-100 | 85 | WebP quality when convert_to_webp is enabled |
 
 ## Reference Images (Gemini Pro Only)
 
@@ -284,7 +286,7 @@ peeperfrog-create:add_to_batch({
 // Review
 peeperfrog-create:view_batch_queue()
 
-// Generate all
+// Generate all (auto WebP conversion)
 peeperfrog-create:run_batch()
 ```
 
@@ -292,7 +294,27 @@ peeperfrog-create:run_batch()
 
 ## Post-Generation
 
-### WebP Conversion
+### Automatic WebP Conversion (Default)
+
+Both `generate_image` and `run_batch` convert to WebP automatically (`convert_to_webp: true` by default). WebP files are saved to the configured `webp_subdir` (default: `webp` inside `images_dir`).
+
+To disable or customize:
+
+```javascript
+// Skip WebP conversion
+peeperfrog-create:generate_image({ prompt: "A sunset", convert_to_webp: false })
+
+// Custom quality
+peeperfrog-create:generate_image({ prompt: "A sunset", webp_quality: 95 })
+
+// Same for batch
+peeperfrog-create:run_batch({ convert_to_webp: false })
+peeperfrog-create:run_batch({ webp_quality: 90 })
+```
+
+### Bulk WebP Conversion (Manual)
+
+Only needed if you disabled auto conversion or have older images:
 
 ```javascript
 peeperfrog-create:convert_to_webp({ quality: 85 })

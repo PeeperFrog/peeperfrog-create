@@ -37,6 +37,7 @@ def load_config():
                 cfg[key] = os.path.join(config_dir, cfg[key])
     # Derived paths
     cfg["batch_dir"] = os.path.join(cfg["images_dir"], cfg.get("batch_subdir", "batch"))
+    cfg["webp_dir"] = os.path.join(cfg["images_dir"], cfg.get("webp_subdir", "webp"))
     cfg["queue_file"] = os.path.join(cfg["images_dir"], cfg.get("queue_filename", "batch_queue.json"))
     return cfg
 
@@ -631,7 +632,37 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, model_alias=No
 
 # --- Core functions ---
 
-def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general"):
+def _convert_png_to_webp(png_path, webp_quality=85, webp_dir=None):
+    """Convert a PNG file to WebP format using PIL.
+
+    Args:
+        png_path: Path to the source PNG file
+        webp_quality: WebP quality 0-100 (default 85)
+        webp_dir: Output directory for WebP files (default: CFG["webp_dir"])
+
+    Returns:
+        (webp_path, webp_size) tuple, or (None, 0) on failure
+    """
+    try:
+        from PIL import Image
+        target_dir = webp_dir or CFG["webp_dir"]
+        os.makedirs(target_dir, exist_ok=True)
+        basename = os.path.splitext(os.path.basename(png_path))[0]
+        webp_path = os.path.join(target_dir, f"{basename}.webp")
+        img = Image.open(png_path)
+        if img.mode == 'RGBA':
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(webp_path, 'webp', quality=webp_quality, method=6)
+        return webp_path, os.path.getsize(webp_path)
+    except Exception as e:
+        debug_log(f"WebP conversion failed for {png_path}: {e}", "ERROR")
+        return None, 0
+
+def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general", convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, wp_url=None):
     """Generate image using the specified provider."""
     auto_selected = None
     if auto_mode:
@@ -674,6 +705,12 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
 
     cost = estimate_cost(provider, quality, image_size, aspect_ratio, len(ref_paths), search_grounding, thinking_level, model)
 
+    # WebP conversion
+    webp_path = None
+    webp_size = 0
+    if convert_to_webp:
+        webp_path, webp_size = _convert_png_to_webp(filename, webp_quality)
+
     result = {
         "success": True,
         "image_path": filename,
@@ -683,8 +720,13 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         "quality": quality,
         "model": used_model,
         "reference_images_used": len(ref_paths),
-        "message": f"Image generated successfully ({provider}/{used_model}): {filename}"
+        "message": f"Image generated successfully ({provider}/{used_model}): {filename}",
+        "file_count": 1,
+        "total_size_bytes": webp_size if webp_path else os.path.getsize(filename),
     }
+    if webp_path:
+        result["webp_path"] = webp_path
+        result["webp_size"] = webp_size
     if auto_selected:
         result["auto_mode"] = auto_mode
         result["auto_selected"] = auto_selected
@@ -693,6 +735,20 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         result["estimated_cost_usd"] = cost
     # Log the generation
     log_generation(os.path.basename(filename), "success", cost, provider, quality, aspect_ratio)
+
+    # WordPress upload if requested
+    if upload_to_wordpress and wp_url:
+        upload_file = webp_path if webp_path else filename
+        try:
+            wp_result = _upload_single_to_wordpress(upload_file, wp_url)
+            result["wordpress_upload"] = wp_result
+            # Add top-level fields for easy access
+            if wp_result.get("success"):
+                result["wordpress_url"] = wp_result.get("url")
+                result["wordpress_media_id"] = wp_result.get("media_id")
+        except Exception as e:
+            result["wordpress_upload"] = {"success": False, "error": str(e)}
+
     return result
 
 def add_to_batch(prompt, filename=None, aspect_ratio="16:9", image_size="large", description="", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general"):
@@ -756,16 +812,92 @@ def view_batch_queue():
     result = subprocess.run(cmd, capture_output=True, text=True)
     return json.loads(result.stdout)
 
-def run_batch():
+def run_batch(convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, wp_url=None):
     env = os.environ.copy()
     cmd = ["python3", CFG["batch_generate_script"], CFG["queue_file"], CFG["batch_dir"]]
+    if convert_to_webp:
+        cmd.extend(["--convert-to-webp", "--webp-quality", str(webp_quality), "--webp-dir", CFG["webp_dir"]])
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
-    return {
+    # Parse batch_results.json for file paths and summary stats
+    files = []
+    total_size = 0
+    webp_converted = 0
+    batch_results = []
+    results_file = os.path.join(CFG["batch_dir"], "batch_results.json")
+    try:
+        with open(results_file, 'r') as f:
+            batch_results = json.load(f)
+        for r in batch_results:
+            if r.get("status") == "success":
+                if r.get("webp_path"):
+                    files.append(r["webp_path"])
+                    total_size += r.get("webp_size", 0)
+                    webp_converted += 1
+                elif r.get("path"):
+                    files.append(r["path"])
+                    try:
+                        total_size += os.path.getsize(r["path"])
+                    except OSError:
+                        pass
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    response = {
         "success": result.returncode == 0,
+        "files": files,
+        "summary": {
+            "count": len(files),
+            "total_size_bytes": total_size,
+            "webp_converted": webp_converted,
+        },
         "output": result.stdout,
         "error": result.stderr if result.returncode != 0 else None
     }
+
+    # WordPress upload if requested
+    if upload_to_wordpress and wp_url and files:
+        uploaded = []
+        failed = []
+        # Build lookup from file path to batch_results index for updating
+        results_by_file = {}
+        for idx, r in enumerate(batch_results):
+            if r.get("webp_path"):
+                results_by_file[r["webp_path"]] = idx
+            if r.get("path"):
+                results_by_file[r["path"]] = idx
+
+        for file_path in files:
+            try:
+                wp_result = _upload_single_to_wordpress(file_path, wp_url)
+                if wp_result.get("success"):
+                    uploaded.append(wp_result)
+                    # Update batch_results with WordPress info
+                    if file_path in results_by_file:
+                        idx = results_by_file[file_path]
+                        batch_results[idx]["wordpress_url"] = wp_result.get("url")
+                        batch_results[idx]["wordpress_media_id"] = wp_result.get("media_id")
+                else:
+                    failed.append(wp_result)
+            except Exception as e:
+                failed.append({"filename": os.path.basename(file_path), "success": False, "error": str(e)})
+
+        # Write updated batch_results.json with WordPress info
+        if batch_results:
+            try:
+                with open(results_file, 'w') as f:
+                    json.dump(batch_results, f, indent=2)
+            except Exception:
+                pass
+
+        response["wordpress_upload"] = {
+            "uploaded": uploaded,
+            "failed": failed,
+            "total_uploaded": len(uploaded),
+            "total_failed": len(failed)
+        }
+
+    return response
 
 def convert_to_webp(quality=85, force=False):
     cmd = ["uv", "run", CFG["webp_convert_script"], CFG["images_dir"], "--batch", "--recursive", "--quality", str(quality)]
@@ -778,12 +910,13 @@ def convert_to_webp(quality=85, force=False):
         "error": result.stderr if result.returncode != 0 else None
     }
 
-def upload_to_wordpress(wp_url, directory="batch", limit=10):
-    from pathlib import Path
+def _get_wordpress_config(wp_url):
+    """Look up WordPress config from config.json by URL.
 
-    # Look up credentials from config.json wordpress section
+    Returns:
+        (normalized_url, user, password, alt_text_prefix)
+    """
     wp_sites = CFG.get("wordpress", {})
-    # Normalize URL: strip trailing slash for matching
     normalized_url = wp_url.rstrip("/")
     site_cfg = wp_sites.get(normalized_url) or wp_sites.get(normalized_url + "/")
     if not site_cfg:
@@ -792,6 +925,61 @@ def upload_to_wordpress(wp_url, directory="batch", limit=10):
     wp_password = site_cfg.get("password")
     if not wp_user or not wp_password:
         raise Exception(f"WordPress config for '{wp_url}' is missing 'user' or 'password' in config.json.")
+    alt_text_prefix = site_cfg.get("alt_text_prefix", "")
+    return normalized_url, wp_user, wp_password, alt_text_prefix
+
+
+def _get_wordpress_credentials(wp_url):
+    """Look up WordPress credentials from config.json by URL (legacy wrapper)."""
+    normalized_url, wp_user, wp_password, _ = _get_wordpress_config(wp_url)
+    return normalized_url, wp_user, wp_password
+
+
+def _upload_single_to_wordpress(file_path, wp_url):
+    """Upload a single image file to WordPress media library."""
+    normalized_url, wp_user, wp_password, alt_text_prefix = _get_wordpress_config(wp_url)
+
+    filename = os.path.basename(file_path)
+    # Generate alt text from filename (strip extension, replace separators with spaces)
+    base_name = os.path.splitext(filename)[0]
+    alt_text_base = base_name.replace("-", " ").replace("_", " ")
+    alt_text = f"{alt_text_prefix}{alt_text_base}" if alt_text_prefix else alt_text_base
+
+    mime_type = "image/webp" if file_path.endswith(".webp") else get_mime_type(file_path)
+
+    with open(file_path, 'rb') as f:
+        files = {'file': (filename, f, mime_type)}
+        data = {'alt_text': alt_text}
+        response = requests.post(
+            f"{normalized_url}/wp-json/wp/v2/media",
+            auth=(wp_user, wp_password),
+            files=files,
+            data=data
+        )
+
+    if response.status_code == 201:
+        media_data = response.json()
+        return {
+            "success": True,
+            "alt_text": alt_text,
+            "filename": filename,
+            "media_id": media_data['id'],
+            "url": media_data['source_url'],
+            "title": media_data['title']['rendered']
+        }
+    else:
+        return {
+            "success": False,
+            "filename": filename,
+            "error": f"HTTP {response.status_code}: {response.text}"
+        }
+
+
+def upload_to_wordpress(wp_url, directory="batch", limit=10):
+    from pathlib import Path
+
+    # Look up credentials from config.json wordpress section
+    normalized_url, wp_user, wp_password = _get_wordpress_credentials(wp_url)
 
     batch_dir = os.path.join(CFG["images_dir"], directory)
     uploaded = []
@@ -840,6 +1028,102 @@ def get_generated_webp_images(directory="batch", limit=10):
             })
 
     return {"success": True, "images": images, "count": len(images)}
+
+
+def get_media_id_map(directory="batch", output_format="json"):
+    """Get metadata mapping for uploaded images without returning image data.
+
+    Reads batch_results.json to extract WordPress upload metadata.
+    Useful for getting media IDs to set featured images on posts.
+
+    Args:
+        directory: Subdirectory within images_dir (default: "batch")
+        output_format: "json" (default), "yaml", or "python_dict"
+
+    Returns:
+        Mapping of filename to metadata (media_id, url, file_size, upload_timestamp)
+    """
+    from pathlib import Path
+
+    batch_dir = os.path.join(CFG["images_dir"], directory)
+    results_file = os.path.join(batch_dir, "batch_results.json")
+
+    media_map = {}
+
+    # Read batch_results.json for WordPress metadata
+    try:
+        with open(results_file, 'r') as f:
+            batch_results = json.load(f)
+
+        for r in batch_results:
+            if r.get("status") != "success":
+                continue
+
+            # Determine which file to use (prefer webp)
+            file_path = r.get("webp_path") or r.get("path")
+            if not file_path:
+                continue
+
+            filename = os.path.basename(file_path)
+            entry = {
+                "file_path": file_path,
+                "file_size": r.get("webp_size") or 0,
+            }
+
+            # Add WordPress metadata if uploaded
+            if r.get("wordpress_media_id"):
+                entry["wordpress_media_id"] = r["wordpress_media_id"]
+                entry["wordpress_url"] = r.get("wordpress_url")
+
+            # Try to get file modification time as upload timestamp
+            if os.path.exists(file_path):
+                entry["file_size"] = os.path.getsize(file_path)
+                entry["modified_time"] = datetime.fromtimestamp(
+                    os.path.getmtime(file_path)
+                ).strftime("%Y-%m-%d %H:%M:%S")
+
+            # Add generation metadata
+            if r.get("provider"):
+                entry["provider"] = r["provider"]
+            if r.get("aspect_ratio"):
+                entry["aspect_ratio"] = r["aspect_ratio"]
+
+            media_map[filename] = entry
+
+    except (FileNotFoundError, json.JSONDecodeError):
+        # Fall back to scanning directory for files
+        image_files = sorted(Path(batch_dir).glob("*.webp"), key=os.path.getmtime, reverse=True)
+        for img_path in image_files:
+            filename = img_path.name
+            media_map[filename] = {
+                "file_path": str(img_path),
+                "file_size": os.path.getsize(img_path),
+                "modified_time": datetime.fromtimestamp(
+                    os.path.getmtime(img_path)
+                ).strftime("%Y-%m-%d %H:%M:%S"),
+            }
+
+    # Format output
+    if output_format == "yaml":
+        try:
+            import yaml
+            formatted = yaml.dump(media_map, default_flow_style=False, sort_keys=False)
+        except ImportError:
+            formatted = json.dumps(media_map, indent=2)
+            output_format = "json (yaml not available)"
+    elif output_format == "python_dict":
+        formatted = repr(media_map)
+    else:
+        formatted = json.dumps(media_map, indent=2)
+
+    return {
+        "success": True,
+        "format": output_format,
+        "count": len(media_map),
+        "media_map": media_map,
+        "formatted": formatted
+    }
+
 
 def estimate_image_cost(provider="gemini", quality="pro", aspect_ratio="1:1", image_size="large", num_reference_images=0, search_grounding=False, thinking_level=None, count=1, model=None, auto_mode=None, style_hint="general"):
     """Return a cost estimate without generating anything."""
@@ -917,6 +1201,18 @@ def handle_tools_list(request_id):
                     }
                 },
                 {
+                    "name": "get_media_id_map",
+                    "description": "Get metadata mapping for uploaded images without returning image data. Returns filename to WordPress media ID mapping, file sizes, and timestamps. Useful for setting featured images on posts.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "directory": {"type": "string", "description": "Directory to scan (default: batch)", "default": "batch"},
+                            "output_format": {"type": "string", "description": "Output format: 'json' (default), 'yaml', or 'python_dict'", "enum": ["json", "yaml", "python_dict"], "default": "json"}
+                        },
+                        "required": []
+                    }
+                },
+                {
                     "name": "generate_image",
                     "description": "Generate a single image immediately. Supports multiple providers: 'gemini' (default, Google Gemini), 'openai' (gpt-image-1), 'together' (FLUX models). Use quality='pro' for high-quality or 'fast' for cheaper/quicker generation.",
                     "inputSchema": {
@@ -939,7 +1235,11 @@ def handle_tools_list(request_id):
                             "media_resolution": {"type": "string", "description": "Media resolution control for input processing (Gemini only): 'low', 'medium', 'high'", "enum": ["low", "medium", "high"]},
                             "model": {"type": "string", "description": "Together AI model alias. Overrides provider/quality. Options: " + ", ".join(TOGETHER_MODEL_ALIASES), "enum": TOGETHER_MODEL_ALIASES},
                             "auto_mode": {"type": "string", "description": "Auto-select the best model based on cost tier and constraints. Overrides provider/quality/model. Options: cheapest, budget, balanced, quality, best", "enum": AUTO_MODE_ENUM},
-                            "style_hint": {"type": "string", "description": "Style preference for auto_mode model selection: 'general' (default), 'photo' (photorealistic), 'illustration' (art/drawings), 'text' (text in image matters), 'infographic' (charts, graphs, data visualizations)", "enum": STYLE_HINT_ENUM, "default": "general"}
+                            "style_hint": {"type": "string", "description": "Style preference for auto_mode model selection: 'general' (default), 'photo' (photorealistic), 'illustration' (art/drawings), 'text' (text in image matters), 'infographic' (charts, graphs, data visualizations)", "enum": STYLE_HINT_ENUM, "default": "general"},
+                            "convert_to_webp": {"type": "boolean", "description": "Convert generated image to WebP format immediately after generation", "default": True},
+                            "webp_quality": {"type": "integer", "description": "WebP quality (0-100) when convert_to_webp is enabled", "default": 85, "minimum": 0, "maximum": 100},
+                            "upload_to_wordpress": {"type": "boolean", "description": "Upload the generated image to WordPress immediately after generation", "default": False},
+                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Required if upload_to_wordpress is true. Must match an entry in config.json wordpress section."}
                         },
                         "required": ["prompt"]
                     }
@@ -993,7 +1293,16 @@ def handle_tools_list(request_id):
                 {
                     "name": "run_batch",
                     "description": "Execute batch generation for all queued images",
-                    "inputSchema": {"type": "object", "properties": {}, "required": []}
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "convert_to_webp": {"type": "boolean", "description": "Convert each generated image to WebP immediately after generation", "default": True},
+                            "webp_quality": {"type": "integer", "description": "WebP quality (0-100) when convert_to_webp is enabled", "default": 85, "minimum": 0, "maximum": 100},
+                            "upload_to_wordpress": {"type": "boolean", "description": "Upload all generated images to WordPress after batch completes", "default": False},
+                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Required if upload_to_wordpress is true. Must match an entry in config.json wordpress section."}
+                        },
+                        "required": []
+                    }
                 },
                 {
                     "name": "estimate_image_cost",
@@ -1075,7 +1384,11 @@ def handle_tool_call(request_id, tool_name, arguments):
                 arguments.get("media_resolution"),
                 arguments.get("model"),
                 arguments.get("auto_mode"),
-                arguments.get("style_hint", "general")
+                arguments.get("style_hint", "general"),
+                arguments.get("convert_to_webp", True),
+                arguments.get("webp_quality", 85),
+                arguments.get("upload_to_wordpress", False),
+                arguments.get("wp_url")
             )
         elif tool_name == "add_to_batch":
             result = add_to_batch(
@@ -1100,7 +1413,12 @@ def handle_tool_call(request_id, tool_name, arguments):
         elif tool_name == "view_batch_queue":
             result = view_batch_queue()
         elif tool_name == "run_batch":
-            result = run_batch()
+            result = run_batch(
+                arguments.get("convert_to_webp", True),
+                arguments.get("webp_quality", 85),
+                arguments.get("upload_to_wordpress", False),
+                arguments.get("wp_url")
+            )
         elif tool_name == "estimate_image_cost":
             result = estimate_image_cost(
                 arguments.get("provider", "gemini"),
@@ -1119,6 +1437,11 @@ def handle_tool_call(request_id, tool_name, arguments):
             result = convert_to_webp(arguments.get("quality", 85), arguments.get("force", False))
         elif tool_name == "get_generated_webp_images":
             result = get_generated_webp_images(arguments.get("directory", "batch"), arguments.get("limit", 10))
+        elif tool_name == "get_media_id_map":
+            result = get_media_id_map(
+                arguments.get("directory", "batch"),
+                arguments.get("output_format", "json")
+            )
         elif tool_name == "upload_to_wordpress":
             result = upload_to_wordpress(
                 arguments.get("wp_url"),

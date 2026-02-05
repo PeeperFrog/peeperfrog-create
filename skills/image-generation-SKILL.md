@@ -55,15 +55,23 @@ peeperfrog-create:generate_image({
 
 | Tool | Description |
 |------|-------------|
-| `generate_image` | Generate a single image immediately (any provider, auto or manual) |
+| `generate_image` | Generate a single image immediately (auto WebP conversion + optional WordPress upload) |
 | `add_to_batch` | Queue an image for batch generation |
 | `remove_from_batch` | Remove from queue by index or filename |
 | `view_batch_queue` | View queued images |
-| `run_batch` | Generate all queued images |
+| `run_batch` | Generate all queued images (auto WebP conversion + optional WordPress upload) |
 | `estimate_image_cost` | Get a cost estimate without generating |
-| `convert_to_webp` | Convert generated images to WebP |
+| `convert_to_webp` | Bulk convert images to WebP (for images generated with `convert_to_webp: false`) |
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
+| `get_media_id_map` | Get filename → WordPress media ID mapping (no image data) |
+
+**Note:** Both `generate_image` and `run_batch` now:
+- Convert to WebP automatically (`convert_to_webp: true` by default, quality 85)
+- Support direct WordPress upload (`upload_to_wordpress: true, wp_url: "https://..."`)
+- Return `wordpress_url` and `wordpress_media_id` when uploaded
+
+The separate `convert_to_webp` and `upload_to_wordpress` tools are only needed for images generated without these options enabled.
 
 ---
 

@@ -25,7 +25,8 @@ A multi-provider MCP (Model Context Protocol) server for AI image generation. Su
 - **Thinking levels** -- configurable reasoning depth (minimal/low/medium/high) for complex compositions (Gemini Pro only)
 - **Media resolution control** -- control input processing resolution: low, medium, high, or auto (Gemini only)
 - **Cost estimation** -- estimated USD cost returned with every generation
-- **WebP conversion** -- convert PNG/JPG to WebP for web optimization
+- **Auto WebP conversion** -- images are automatically converted to WebP after generation (configurable quality, output directory via `config.json`)
+- **Bulk WebP conversion** -- convert older PNG/JPG to WebP for web optimization
 - **WordPress upload** -- upload WebP images directly to WordPress media library
 - **Configurable** -- all paths, limits, and delays via `config.json`; pricing via `pricing.json`
 
@@ -33,16 +34,17 @@ A multi-provider MCP (Model Context Protocol) server for AI image generation. Su
 
 | Tool | Description |
 |------|-------------|
-| `generate_image` | Generate a single image immediately (any provider) |
+| `generate_image` | Generate a single image (auto WebP conversion + optional WordPress upload) |
 | `add_to_batch` | Queue an image for batch generation |
 | `remove_from_batch` | Remove from queue by index or filename |
 | `view_batch_queue` | View queued images |
-| `run_batch` | Generate all queued images |
+| `run_batch` | Generate all queued images (auto WebP conversion + optional WordPress upload) |
 | `estimate_image_cost` | Get a cost estimate without generating anything |
 | `get_generation_cost` | Query cost from generation log by filename or date range |
-| `convert_to_webp` | Convert generated images to WebP |
+| `convert_to_webp` | Bulk convert images to WebP (for older images or when auto conversion is disabled) |
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
+| `get_media_id_map` | Get filename → WordPress media ID mapping without image data |
 
 ## Quick Start
 
@@ -138,8 +140,10 @@ peeperfrog-create-mcp/
 
 ### Generate with different providers
 
+All calls auto-convert to WebP by default. Use `convert_to_webp: false` to disable, or `webp_quality: N` to adjust quality (0-100, default 85).
+
 ```javascript
-// Gemini (default)
+// Gemini (default) - returns webp_path in response
 generate_image({ prompt: "A sunset", provider: "gemini", quality: "pro" })
 
 // OpenAI
@@ -147,6 +151,22 @@ generate_image({ prompt: "A sunset", provider: "openai", quality: "pro" })
 
 // Together AI (FLUX)
 generate_image({ prompt: "A sunset", provider: "together", quality: "fast" })
+
+// Disable auto WebP conversion
+generate_image({ prompt: "A sunset", convert_to_webp: false })
+```
+
+### Generate and upload to WordPress in one call
+
+```javascript
+// Generate, convert to WebP, and upload to WordPress
+generate_image({
+  prompt: "Blog hero image",
+  auto_mode: "balanced",
+  upload_to_wordpress: true,
+  wp_url: "https://yoursite.com"
+})
+// Returns wordpress_url and wordpress_media_id in response
 ```
 
 ### Batch with mixed providers
@@ -154,7 +174,19 @@ generate_image({ prompt: "A sunset", provider: "together", quality: "fast" })
 ```javascript
 add_to_batch({ prompt: "Hero image", provider: "gemini", quality: "pro" })
 add_to_batch({ prompt: "Social post", provider: "together", quality: "fast" })
-run_batch()
+run_batch()  // auto WebP conversion, or: run_batch({ convert_to_webp: false })
+
+// Batch with WordPress upload
+run_batch({ upload_to_wordpress: true, wp_url: "https://yoursite.com" })
+// Updates batch_results.json with wordpress_url and wordpress_media_id for each image
+```
+
+### Get media ID mapping (for setting featured images)
+
+```javascript
+// Get metadata without downloading image data
+get_media_id_map({ directory: "batch" })
+// Returns { "hero.webp": { wordpress_media_id: 1234, wordpress_url: "...", file_size: 45000, ... }, ... }
 ```
 
 ### Auto mode -- let the server pick the best model

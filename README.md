@@ -16,7 +16,7 @@ PeeperFrog Create is an **MCP (Model Context Protocol) server** with a growing s
 
 ### Capabilities
 
-- **Image generation** -- Multi-provider AI image generation supporting Google Gemini, OpenAI, and Together AI (FLUX). Includes auto mode, batch generation, reference images, cost estimation, WebP conversion, and WordPress upload.
+- **Image generation** -- Multi-provider AI image generation supporting Google Gemini, OpenAI, and Together AI (FLUX). Includes auto mode, batch generation, reference images, cost estimation, automatic WebP conversion, and WordPress upload.
 - **Claude Skills** -- SKILL files for auto mode selection, manual provider control, and brand guideline templates. More Skills will be added as capabilities grow.
 
 New capabilities and integrations with other services are in active development.
@@ -76,7 +76,7 @@ Skills teach Claude how to use the MCP tools effectively. They work in both **Cl
 | `image-manual-control` | Manual provider/model selection and advanced options |
 | `image-queue-management` | Manage batch queue -- add, remove, view, and run queued images |
 | `cost-estimation` | Estimate costs before generating -- compare providers and batch totals |
-| `webp-conversion` | Convert generated images to WebP for web optimization |
+| `webp-conversion` | Bulk convert images to WebP (auto conversion is now default) |
 | `wordpress-upload` | Upload WebP images to WordPress (credentials from config.json) |
 | `graphic-prompt-types` | Reference guide for graphic design prompt categories |
 | `example-brand-image-guidelines` | Template for brand-specific image style guides |

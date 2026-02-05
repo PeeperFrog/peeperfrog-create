@@ -232,10 +232,17 @@ peeperfrog-create:add_to_batch({
   filename: "social-thumb-20260201-120002"
 })
 
+// Generate all -- WebP conversion is automatic
 peeperfrog-create:run_batch()
+
+// Or with custom WebP quality
+peeperfrog-create:run_batch({ webp_quality: 90 })
+
+// Or skip WebP conversion
+peeperfrog-create:run_batch({ convert_to_webp: false })
 ```
 
-Each image gets routed to the best model for its specific needs.
+Each image gets routed to the best model for its specific needs. WebP files are saved to the `webp` directory by default.
 
 ---
 
@@ -247,6 +254,10 @@ When auto_mode is used, the response includes extra fields:
 {
   "success": true,
   "image_path": "/path/to/image.png",
+  "webp_path": "/path/to/webp/image.webp",
+  "webp_size": 45000,
+  "file_count": 1,
+  "total_size_bytes": 45000,
   "provider": "together",
   "model": "ideogram-ai/ideogram-3.0",
   "auto_mode": "quality",
@@ -259,6 +270,8 @@ When auto_mode is used, the response includes extra fields:
 - `auto_selected`: The model key that was chosen (matches AUTO_MODE_MODELS keys)
 - `auto_mode`: The tier you requested
 - `style_hint`: The style preference used for ranking
+- `webp_path` / `webp_size`: Present when auto WebP conversion is enabled (default)
+- `file_count` / `total_size_bytes`: Summary stats
 
 ---
 
@@ -291,22 +304,44 @@ Use the **image-manual-control** skill instead when you:
 
 ## Post-Generation
 
-After generating images (single or batch), use these tools for optimization and publishing:
+### Automatic WebP Conversion (Default)
 
-### WebP Conversion
+Both `generate_image` and `run_batch` convert to WebP automatically. The WebP file is saved to the configured `webp_subdir` directory (default: `webp` inside `images_dir`).
 
-Convert all generated images to WebP for smaller file sizes (typically 70-80% reduction):
+```javascript
+// WebP conversion happens automatically -- just generate
+peeperfrog-create:generate_image({
+  prompt: "Product photo",
+  auto_mode: "balanced"
+})
+// Response includes: webp_path, webp_size
+
+// Disable auto conversion if you only want PNG
+peeperfrog-create:generate_image({
+  prompt: "Product photo",
+  auto_mode: "balanced",
+  convert_to_webp: false
+})
+
+// Custom WebP quality
+peeperfrog-create:generate_image({
+  prompt: "Product photo",
+  auto_mode: "balanced",
+  webp_quality: 95
+})
+```
+
+### Bulk WebP Conversion (Manual)
+
+Only needed if you disabled auto conversion or have older images:
 
 ```javascript
 peeperfrog-create:convert_to_webp({ quality: 85 })
-
-// Force reconversion of already-converted images
-peeperfrog-create:convert_to_webp({ quality: 85, force: true })
 ```
 
 ### WordPress Upload
 
-Upload converted WebP images directly to WordPress:
+Upload WebP images directly to WordPress:
 
 ```javascript
 peeperfrog-create:upload_to_wordpress({

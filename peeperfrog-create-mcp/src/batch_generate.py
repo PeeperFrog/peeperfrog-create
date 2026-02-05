@@ -295,6 +295,34 @@ TOGETHER_MODELS = {
     "qwen-image":             {"id": "qwen/qwen-image",                           "cost_per_mp": 0.0058, "steps": 0},
 }
 
+def _convert_png_to_webp(png_path, webp_quality=85, webp_dir=None):
+    """Convert a PNG file to WebP format using PIL.
+
+    Returns:
+        (webp_path, webp_size) tuple, or (None, 0) on failure
+    """
+    try:
+        from PIL import Image
+        if not webp_dir:
+            return None, 0
+        os.makedirs(webp_dir, exist_ok=True)
+        basename = os.path.splitext(os.path.basename(png_path))[0]
+        webp_path = os.path.join(webp_dir, f"{basename}.webp")
+        img = Image.open(png_path)
+        if img.mode == 'RGBA':
+            bg = Image.new('RGB', img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[3])
+            img = bg
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+        img.save(webp_path, 'webp', quality=webp_quality, method=6)
+        webp_size = os.path.getsize(webp_path)
+        print(f"  WebP: {webp_path} ({webp_size:,} bytes)")
+        return webp_path, webp_size
+    except Exception as e:
+        print(f"  WebP conversion failed: {e}")
+        return None, 0
+
 def get_mime_type(file_path):
     ext = os.path.splitext(file_path)[1].lower()
     mime_map = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif"}
@@ -441,7 +469,7 @@ def _generate_together(prompt, aspect_ratio, image_size, quality, api_key, model
     return data['data'][0]['b64_json'], model, f"{width}x{height}"
 
 
-def generate_images_batch(prompts_file, output_dir):
+def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_quality=85, webp_dir=None):
     prompts_data = json.load(open(prompts_file, 'r'))
     prompts = prompts_data.get('prompts', [])
     if not prompts:
@@ -521,6 +549,13 @@ def generate_images_batch(prompts_file, output_dir):
             if cost is not None:
                 result["estimated_cost_usd"] = cost
             print(f"Saved to: {output_path}")
+
+            # WebP conversion
+            if convert_to_webp and webp_dir:
+                wp, ws = _convert_png_to_webp(output_path, webp_quality, webp_dir)
+                if wp:
+                    result["webp_path"] = wp
+                    result["webp_size"] = ws
             remove_from_queue(queue_filename)
             log_generation(filename, "success", cost, provider, quality, aspect_ratio)
 
@@ -553,14 +588,18 @@ def generate_images_batch(prompts_file, output_dir):
 
 if __name__ == "__main__":
     import sys
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("Usage: python3 batch_generate.py <prompts.json> [output_dir]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Batch image generation")
+    parser.add_argument("prompts_file", help="Path to prompts JSON file")
+    parser.add_argument("output_dir", nargs="?", default=None, help="Output directory for generated images")
+    parser.add_argument("--convert-to-webp", action="store_true", help="Convert each image to WebP after generation")
+    parser.add_argument("--webp-quality", type=int, default=85, help="WebP quality 0-100 (default: 85)")
+    parser.add_argument("--webp-dir", type=str, default=None, help="Output directory for WebP files")
 
-    prompts_file = sys.argv[1]
-    output_dir = sys.argv[2] if len(sys.argv) > 2 else os.path.join(CFG["images_dir"], CFG.get("batch_subdir", "batch"))
+    args = parser.parse_args()
 
+    output_dir = args.output_dir or os.path.join(CFG["images_dir"], CFG.get("batch_subdir", "batch"))
     os.makedirs(output_dir, exist_ok=True)
 
-    generate_images_batch(prompts_file, output_dir)
+    generate_images_batch(args.prompts_file, output_dir, args.convert_to_webp, args.webp_quality, args.webp_dir)

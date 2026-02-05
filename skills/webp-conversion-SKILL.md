@@ -7,20 +7,20 @@ description: Convert generated PNG/JPG images to WebP format for web optimizatio
 
 **Purpose:** Convert AI-generated PNG and JPG images to WebP format for smaller file sizes (typically 70-80% reduction) optimized for web use and WordPress publishing.
 
-**Use this skill when:** You have generated images and want to optimize them before uploading or using on the web.
+**Use this skill when:** You disabled automatic WebP conversion (`convert_to_webp: false`) on `generate_image` or `run_batch`, or you have older images that weren't auto-converted.
 
-**Prerequisites:** Images must exist in the configured `images_dir` (or a subdirectory).
+**Note:** As of the latest update, **`generate_image` and `run_batch` convert to WebP automatically** (`convert_to_webp: true`, `webp_quality: 85` by default). WebP files are saved to the `webp` subdirectory inside `images_dir` (configurable via `webp_subdir` in `config.json`). You typically don't need this bulk tool unless you disabled auto conversion.
 
 ---
 
 ## Quick Start
 
 ```javascript
-// Convert all images with default quality (85)
+// Bulk convert all images with default quality (85)
 peeperfrog-create:convert_to_webp()
 ```
 
-That's it. The tool scans your images directory recursively, finds all PNG and JPG files, and creates `.webp` versions alongside them.
+This tool scans your images directory recursively, finds all PNG and JPG files, and creates `.webp` versions alongside them.
 
 ---
 
@@ -89,33 +89,40 @@ The conversion uses the `webp-convert.py` script configured in `config.json`.
 
 ## Common Workflows
 
-### Generate → Convert → Upload
+### Generate → Upload (auto WebP)
+
+With auto conversion, the pipeline is simpler:
 
 ```javascript
-// Generate
+// Generate (WebP conversion is automatic)
 peeperfrog-create:generate_image({
   prompt: "Product photo, studio lighting",
   auto_mode: "balanced",
   style_hint: "photo"
 })
-
-// Convert to WebP
-peeperfrog-create:convert_to_webp({ quality: 85 })
+// Response includes webp_path
 
 // Upload to WordPress
 peeperfrog-create:upload_to_wordpress({ wp_url: "https://yoursite.com" })
 ```
 
-### Batch → Convert → Upload
+### Batch → Upload (auto WebP)
 
 ```javascript
 peeperfrog-create:add_to_batch({ prompt: "Image 1", auto_mode: "balanced", filename: "img1" })
 peeperfrog-create:add_to_batch({ prompt: "Image 2", auto_mode: "balanced", filename: "img2" })
 peeperfrog-create:run_batch()
-
-peeperfrog-create:convert_to_webp({ quality: 85 })
+// Response includes files list with WebP paths
 
 peeperfrog-create:upload_to_wordpress({ wp_url: "https://yoursite.com" })
+```
+
+### Bulk convert older images
+
+If you have PNG/JPG images generated before auto conversion was added:
+
+```javascript
+peeperfrog-create:convert_to_webp({ quality: 85 })
 ```
 
 ### Get base64 data instead of uploading
@@ -123,8 +130,6 @@ peeperfrog-create:upload_to_wordpress({ wp_url: "https://yoursite.com" })
 If you need the WebP image data directly (e.g. for embedding or other APIs):
 
 ```javascript
-peeperfrog-create:convert_to_webp({ quality: 85 })
-
 peeperfrog-create:get_generated_webp_images({
   directory: "batch",
   limit: 10
