@@ -1,0 +1,8 @@
+{
+  "linkedin": {
+    "client_id": "YOUR_LINKEDIN_CLIENT_ID",
+    "client_secret": "YOUR_LINKEDIN_CLIENT_SECRET",
+    "organization_id": "YOUR_ORGANIZATION_ID",
+    "redirect_uri": "http://localhost:8585/callback"
+  }
+}
