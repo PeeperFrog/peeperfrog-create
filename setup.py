@@ -598,12 +598,36 @@ def run_linkedin_oauth_setup(install_dir):
         print("  Virtual environment not found")
         return False
 
+    # Try to get LinkedIn credentials from Claude Desktop config
+    desktop_config_path = get_claude_desktop_config_path()
+    linkedin_env = {}
+
+    if desktop_config_path:
+        config = read_config_file(desktop_config_path)
+        if config:
+            linkedin_cfg = config.get("mcpServers", {}).get("peeperfrog-linkedin", {})
+            env_vars = linkedin_cfg.get("env", {})
+            if env_vars.get("LINKEDIN_CLIENT_ID"):
+                linkedin_env["LINKEDIN_CLIENT_ID"] = env_vars["LINKEDIN_CLIENT_ID"]
+            if env_vars.get("LINKEDIN_CLIENT_SECRET"):
+                linkedin_env["LINKEDIN_CLIENT_SECRET"] = env_vars["LINKEDIN_CLIENT_SECRET"]
+
+    # Check if we have credentials
+    if not linkedin_env.get("LINKEDIN_CLIENT_ID") or not linkedin_env.get("LINKEDIN_CLIENT_SECRET"):
+        print("\n⚠️  LinkedIn credentials not found in config.")
+        print("   Please add LINKEDIN_CLIENT_ID and LINKEDIN_CLIENT_SECRET to your")
+        print("   Claude Desktop config file first, then run OAuth setup manually:")
+        print(f"\n     cd {linkedin_dir}")
+        print("     source venv/bin/activate")
+        print("     python src/oauth_setup.py")
+        return False
+
     print("\n" + "=" * 60)
     print("🔗 LinkedIn OAuth Setup")
     print("=" * 60)
     print("\nThis will open a browser for LinkedIn authorization.")
     print("Make sure your LinkedIn app's redirect URI is set to:")
-    print("  http://localhost:8000/callback")
+    print("  http://localhost:8585/callback")
     print()
 
     if not prompt_yes_no("Run OAuth setup now?", default=True):
@@ -615,8 +639,10 @@ def run_linkedin_oauth_setup(install_dir):
 
     print("\nStarting OAuth setup...")
     try:
-        # Run the OAuth setup script interactively
-        subprocess.run([str(venv_python), str(oauth_script)], cwd=str(linkedin_dir))
+        # Run the OAuth setup script with credentials in environment
+        env = os.environ.copy()
+        env.update(linkedin_env)
+        subprocess.run([str(venv_python), str(oauth_script)], cwd=str(linkedin_dir), env=env)
         return True
     except Exception as e:
         print(f"  Error running OAuth setup: {e}")
