@@ -9,6 +9,7 @@ This script handles both installation and updates:
 Usage:
     python3 setup.py              # Interactive setup
     python3 setup.py --update     # Update only (skip prompts)
+    python3 setup.py --restart    # Restart Claude Code after setup
 """
 
 import os
@@ -17,6 +18,8 @@ import subprocess
 import shutil
 import json
 import hashlib
+import platform
+import signal
 from pathlib import Path
 
 # Configuration
@@ -346,15 +349,114 @@ def install_skills(install_dir):
     skills_dest = Path.home() / ".claude" / "skills"
 
     if not skills_src.exists():
-        return
+        return 0
 
-    print("\n🎯 Installing Claude Skills...")
+    print("\n🎯 Installing Claude Code Skills...")
+    print("   (This installs skills for Claude Code CLI only)")
     skills_dest.mkdir(parents=True, exist_ok=True)
 
+    count = 0
     for skill_file in skills_src.glob("*.md"):
         dest_file = skills_dest / skill_file.name
         shutil.copy(skill_file, dest_file)
         print(f"  Installed: {skill_file.name}")
+        count += 1
+
+    return count
+
+
+def print_claude_desktop_skills_instructions(install_dir):
+    """Print instructions for installing skills in Claude Desktop."""
+    skills_src = install_dir / "skills"
+    if not skills_src.exists():
+        return
+
+    skill_files = list(skills_src.glob("*.md"))
+    if not skill_files:
+        return
+
+    print("\n" + "-" * 60)
+    print("📱 For Claude Desktop (GUI app):")
+    print("-" * 60)
+    print("Skills must be uploaded manually through the app:")
+    print("  1. Open Claude Desktop")
+    print("  2. Go to Settings > Capabilities")
+    print("  3. Toggle on 'Skills' if not already enabled")
+    print("  4. Click 'Add' > 'Upload a skill'")
+    print(f"  5. Upload files from: {skills_src}")
+    print()
+    print("Skills sync between Claude Desktop and Claude.ai (web).")
+    print("-" * 60)
+
+
+def find_claude_processes():
+    """Find running Claude Code processes."""
+    processes = []
+    try:
+        # Try pgrep first (Linux/macOS)
+        result = subprocess.run(
+            ["pgrep", "-f", "claude"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            for pid in result.stdout.strip().split("\n"):
+                if pid:
+                    processes.append(int(pid))
+    except FileNotFoundError:
+        # pgrep not available, try ps
+        try:
+            result = subprocess.run(
+                ["ps", "aux"],
+                capture_output=True,
+                text=True
+            )
+            for line in result.stdout.split("\n"):
+                if "claude" in line.lower() and "python" not in line.lower():
+                    parts = line.split()
+                    if len(parts) > 1:
+                        try:
+                            processes.append(int(parts[1]))
+                        except ValueError:
+                            pass
+        except Exception:
+            pass
+
+    return processes
+
+
+def restart_claude_code():
+    """Attempt to restart Claude Code."""
+    print("\n🔄 Restarting Claude Code...")
+
+    # Find Claude processes
+    processes = find_claude_processes()
+
+    if not processes:
+        print("  No running Claude Code processes found.")
+        print("  Start Claude Code manually when ready.")
+        return False
+
+    # Kill existing processes
+    killed = 0
+    for pid in processes:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed += 1
+            print(f"  Stopped process {pid}")
+        except (OSError, ProcessLookupError):
+            pass
+
+    if killed > 0:
+        print(f"  Stopped {killed} Claude process(es).")
+        print()
+        print("  To restart Claude Code, run:")
+        print("    claude")
+        print()
+        print("  Or if using Claude Desktop, relaunch the application.")
+        return True
+
+    return False
 
 
 def prompt_yes_no(question, default=True):
@@ -423,6 +525,7 @@ def main():
 
     # Parse arguments
     update_only = "--update" in sys.argv
+    do_restart = "--restart" in sys.argv
 
     # Determine install directory
     install_dir = DEFAULT_INSTALL_DIR
@@ -435,6 +538,10 @@ def main():
 
     # Check installation status
     already_installed = is_installed(install_dir)
+
+    # Track if we need to suggest restart
+    needs_restart = False
+    skills_installed = 0
 
     if already_installed:
         print(f"\n✅ Existing installation detected at: {install_dir}")
@@ -458,6 +565,7 @@ def main():
             req_file = install_dir / server_id / config["requirements_file"]
             if get_file_hash(req_file) != hash_before:
                 deps_changed = True
+                needs_restart = True
                 print(f"\n📦 Dependencies changed for {config['name']}")
 
         # Update dependencies if changed
@@ -470,9 +578,23 @@ def main():
                     install_dependencies(mcp_dir, MCP_SERVERS[server_id])
 
         # Update skills
-        install_skills(install_dir)
+        skills_installed = install_skills(install_dir)
 
         print("\n✅ Update complete!")
+
+        # Show Claude Desktop instructions
+        print_claude_desktop_skills_instructions(install_dir)
+
+        # Handle restart
+        if needs_restart:
+            print("\n⚠️  MCP server code was updated. Restart required for changes to take effect.")
+            if do_restart:
+                restart_claude_code()
+            elif not update_only:
+                if prompt_yes_no("\nRestart Claude Code now?", default=False):
+                    restart_claude_code()
+                else:
+                    print("\n  Remember to restart Claude Code to apply changes.")
 
     else:
         # Fresh installation
@@ -535,8 +657,9 @@ def main():
             print(f"  ✅ {server_config['name']} ready!")
 
         # Install skills
-        if not update_only and prompt_yes_no("\nInstall Claude Skills?"):
-            install_skills(install_dir)
+        if not update_only and prompt_yes_no("\nInstall Claude Code Skills?"):
+            skills_installed = install_skills(install_dir)
+            print_claude_desktop_skills_instructions(install_dir)
 
         # Generate and display MCP config
         mcp_config = generate_mcp_config(install_dir, servers_to_setup)
