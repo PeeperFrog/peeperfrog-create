@@ -101,6 +101,24 @@ TOGETHER_API_KEY=your-together-api-key-here
 
 ### 4. Configure WordPress (optional)
 
+Upload AI-generated images directly to your WordPress media library. No API key needed -- WordPress has built-in support.
+
+**Prerequisites:**
+
+| Requirement | Details |
+|-------------|---------|
+| **WordPress admin access** | Editor role or higher |
+| **Application Password** | A special WordPress password (not your login password) |
+
+**To create an Application Password:**
+
+1. Log in to your WordPress admin dashboard
+2. Go to **Users > Profile**
+3. Scroll to **Application Passwords**
+4. Enter a name (e.g., "PeeperFrog Create")
+5. Click **Add New Application Password**
+6. Copy the generated password -- you won't see it again
+
 Edit `config.json` to add WordPress sites for image uploads:
 
 ```json
@@ -118,8 +136,6 @@ Edit `config.json` to add WordPress sites for image uploads:
   }
 }
 ```
-
-Create application passwords in WordPress: **Users > Profile > Application Passwords**
 
 **Security note:** Credentials stay in `config.json` (never exposed to Claude).
 

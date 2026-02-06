@@ -93,6 +93,24 @@ You need **at least one** of these (all are optional, use what you need):
 | **Client Secret** | [LinkedIn Developers](https://www.linkedin.com/developers/apps) | Yes - Find in Auth tab of your app |
 | **Organization ID** | Your Company Page admin URL | No - Only needed for Company Page posts |
 
+### For WordPress Upload (Optional)
+
+Upload AI-generated images directly to your WordPress media library. No API key needed -- WordPress has built-in support.
+
+| Requirement | Details |
+|-------------|---------|
+| **WordPress admin access** | Editor role or higher |
+| **Application Password** | A special WordPress password (not your login password) |
+
+**To create an Application Password:**
+
+1. Log in to your WordPress admin dashboard
+2. Go to **Users > Profile**
+3. Scroll to **Application Passwords**
+4. Enter a name (e.g., "PeeperFrog Create")
+5. Click **Add New Application Password**
+6. Copy the generated password -- you won't see it again
+
 The setup script will guide you through what's needed and let you proceed even if you don't have keys ready yet.
 
 ## Quick Start
@@ -164,7 +182,7 @@ cd peeperfrog-create/peeperfrog-create-mcp
 cp config.json.example config.json
 cp .env.example .env
 # Edit .env with your API keys (Gemini, OpenAI, and/or Together AI)
-# Edit config.json to add WordPress sites (optional)
+# Edit config.json to add WordPress sites (optional, requires Application Password -- see Prerequisites)
 python3 -m venv venv
 source venv/bin/activate
 pip install requests mcp
