@@ -733,6 +733,9 @@ def generate_mcp_config(install_dir, selected_servers, collected_keys=None):
 
     Credentials are stored in .env files in the codebase, NOT in the MCP config.
     This keeps secrets out of Claude's view.
+
+    WordPress sites are configured in config.json and can be discovered via
+    the list_wordpress_sites tool.
     """
     if collected_keys is None:
         collected_keys = {}
@@ -753,12 +756,13 @@ def generate_mcp_config(install_dir, selected_servers, collected_keys=None):
         else:
             config_name = server_id.replace("-mcp", "")
 
-        # NO env vars in config - credentials are in .env files
-        # This keeps secrets out of Claude's view
-        config["mcpServers"][config_name] = {
+        # Build server config - credentials are in .env files
+        server_entry = {
             "command": str(venv_python),
             "args": [str(server_script)],
         }
+
+        config["mcpServers"][config_name] = server_entry
 
     return config
 
@@ -864,16 +868,30 @@ def prompt_api_key(key_name):
     print(f"    Get it here: {info.get('url', 'N/A')}")
     print(f"    {info.get('instructions', '')}")
 
-    if required:
-        prompt = f"  Enter {key_name}: "
-    else:
-        prompt = f"  Enter {key_name} (or press Enter to skip): "
+    while True:
+        if required:
+            print(f"\n  Options: Enter key, or 'g' to go get it now")
+            prompt = f"  Enter {key_name}: "
+        else:
+            print(f"\n  Options: Enter key, 'g' to go get it, or Enter to skip")
+            prompt = f"  {key_name}: "
 
-    try:
-        value = input(prompt).strip()
-        return value if value else None
-    except EOFError:
-        return None
+        try:
+            value = input(prompt).strip()
+
+            if value.lower() == 'g':
+                print(f"\n  Go to: {info.get('url', 'N/A')}")
+                print(f"  {info.get('instructions', '')}")
+                input("  Press Enter when you have your key...")
+                continue
+
+            if not value and required:
+                print("  This key is required. Please enter a value or 'g' to get one.")
+                continue
+
+            return value if value else None
+        except EOFError:
+            return None
 
 
 def collect_api_keys(server_id):
@@ -932,9 +950,23 @@ def collect_wordpress_config():
     """Collect WordPress site configuration for image uploads."""
     sites = {}
 
-    print("\n  WordPress Configuration (for image uploads):")
-    print("  You can add multiple WordPress sites.")
-    print("  Press Enter with empty URL to finish.\n")
+    print("\n  " + "-" * 56)
+    print("  WordPress Image Upload Configuration")
+    print("  " + "-" * 56)
+    print("\n  Upload AI-generated images directly to WordPress media library.")
+    print("  You can configure multiple WordPress sites.\n")
+
+    print("  Prerequisites for each site:")
+    print("    1. WordPress admin access (Editor role or higher)")
+    print("    2. An Application Password (not your login password)")
+    print("\n  To create an Application Password:")
+    print("    1. Log in to WordPress admin")
+    print("    2. Go to Users > Profile")
+    print("    3. Scroll to 'Application Passwords'")
+    print("    4. Enter a name (e.g., 'PeeperFrog Create')")
+    print("    5. Click 'Add New Application Password'")
+    print("    6. Copy the generated password (you won't see it again)")
+    print("\n  Press Enter with empty URL when done adding sites.\n")
 
     site_num = 1
     while True:
@@ -947,25 +979,41 @@ def collect_wordpress_config():
             url = "https://" + url
         url = url.rstrip("/")
 
-        username = input(f"  Username for {url}: ").strip()
+        username = input(f"  WordPress username for {url}: ").strip()
         if not username:
             print("  Skipping (username required)")
             continue
 
-        print(f"  Application password for {url}")
-        print("  (Create one in WordPress: Users > Profile > Application Passwords)")
-        password = input("  Password: ").strip()
-        if not password:
-            print("  Skipping (password required)")
-            continue
+        # Prompt for password with "go get it" option
+        while True:
+            print(f"\n  Application password for {url}:")
+            print("    (The password with spaces, e.g., 'xxxx xxxx xxxx xxxx xxxx xxxx')")
+            print("    Options: Enter password, or 'g' to go create one now")
+            password = input("  Password: ").strip()
 
-        sites[url] = {
-            "user": username,
-            "password": password,
-            "alt_text_prefix": "AI-generated image: "
-        }
-        print(f"  ✅ Added {url}\n")
-        site_num += 1
+            if password.lower() == 'g':
+                print(f"\n  To create an Application Password:")
+                print(f"    1. Go to: {url}/wp-admin/profile.php")
+                print("    2. Scroll to 'Application Passwords'")
+                print("    3. Enter name: 'PeeperFrog Create'")
+                print("    4. Click 'Add New Application Password'")
+                print("    5. Copy the password (you won't see it again)")
+                input("  Press Enter when you have your password...")
+                continue
+
+            if not password:
+                print("  Skipping this site (password required)")
+                break
+
+            # Valid password entered
+            sites[url] = {
+                "user": username,
+                "password": password,
+                "alt_text_prefix": "AI-generated image: "
+            }
+            print(f"  ✅ Added {url}\n")
+            site_num += 1
+            break
 
     return sites
 
@@ -1005,16 +1053,35 @@ def offer_config_setup(install_dir, selected_servers, collected_keys=None):
             print(f"    {install_dir / server_id / '.env'}")
 
     # Collect WordPress configuration for image server
+    wp_sites = None
     if "peeperfrog-create-mcp" in selected_servers:
-        if prompt_yes_no("\nWould you like to configure WordPress sites for image uploads?"):
-            wp_sites = collect_wordpress_config()
-            if wp_sites:
-                config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
+        # Check for existing WordPress config
+        config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
+        if config_path.exists():
+            try:
+                with open(config_path, "r") as f:
+                    existing_config = json.load(f)
+                    wp_sites = existing_config.get("wordpress", {})
+            except Exception:
+                pass
+
+        print("\n  WordPress Upload (Optional):")
+        print("  Generated images can be uploaded directly to WordPress.")
+        print("  Requires: WordPress admin access + Application Password")
+
+        if prompt_yes_no("\n  Would you like to configure WordPress sites for image uploads?"):
+            new_wp_sites = collect_wordpress_config()
+            if new_wp_sites:
+                # Merge with existing
+                if wp_sites:
+                    wp_sites.update(new_wp_sites)
+                else:
+                    wp_sites = new_wp_sites
                 write_config_json(config_path, {"wordpress": wp_sites})
                 print(f"  ✅ WordPress config saved to {config_path}")
         else:
             print("\n  You can add WordPress sites later by editing:")
-            print(f"    {install_dir / 'peeperfrog-create-mcp' / 'config.json'}")
+            print(f"    {config_path}")
 
     # Generate config (no secrets - just paths)
     mcp_config = generate_mcp_config(install_dir, selected_servers, collected_keys)
@@ -1366,13 +1433,13 @@ For Image Generation MCP:
   • At least ONE of: Gemini, OpenAI, or Together AI API key
   • All providers are optional - use only what you need
   • Free tiers available for Gemini and Together AI
+  • WordPress site + Application Password (optional, for image uploads)
 
 For LinkedIn MCP:
   • LinkedIn Developer App (Client ID + Secret) - required
   • Organization ID - optional, only for Company Page posts
 
-You can proceed without keys and add them later to your
-MCP settings file.
+The setup will guide you through getting each credential.
 """)
 
 

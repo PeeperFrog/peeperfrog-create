@@ -63,6 +63,7 @@ peeperfrog-create:generate_image({
 | `estimate_image_cost` | Get a cost estimate without generating |
 | `convert_to_webp` | Bulk convert images to WebP (for images generated with `convert_to_webp: false`) |
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
+| `list_wordpress_sites` | List configured WordPress site URLs (credentials stay secure) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
 | `get_media_id_map` | Get filename → WordPress media ID mapping (no image data) |
 
@@ -72,6 +73,8 @@ peeperfrog-create:generate_image({
 - Return `wordpress_url` and `wordpress_media_id` when uploaded
 
 The separate `convert_to_webp` and `upload_to_wordpress` tools are only needed for images generated without these options enabled.
+
+**WordPress uploads:** Call `list_wordpress_sites` once per session to discover available sites, then use one of those URLs in your `wp_url` parameter.
 
 ---
 
