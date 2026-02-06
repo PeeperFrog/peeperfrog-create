@@ -901,15 +901,30 @@ def offer_config_setup(install_dir, selected_servers, collected_keys=None):
             config_name = "peeperfrog-linkedin"
         print(f"    • {config_name}")
 
-    # Show any keys that still need to be added
+    # Check actual config for missing required keys
     missing_keys = []
-    for server_id in selected_servers:
-        server_config = MCP_SERVERS.get(server_id, {})
-        for var in server_config.get("env_vars", []):
-            if var not in collected_keys or not collected_keys[var]:
-                info = API_KEY_INFO.get(var, {})
-                if info.get("required", False):
-                    missing_keys.append((var, info))
+    config_to_check = desktop_path if desktop_path and desktop_path.exists() else code_path
+    if config_to_check and config_to_check.exists():
+        actual_config = read_config_file(config_to_check)
+        if actual_config:
+            for server_id in selected_servers:
+                # Get the config name used in the file
+                if server_id == "peeperfrog-create-mcp":
+                    config_name = "peeperfrog-create"
+                elif server_id == "peeperfrog-linkedin-mcp":
+                    config_name = "peeperfrog-linkedin"
+                else:
+                    config_name = server_id.replace("-mcp", "")
+
+                server_env = actual_config.get("mcpServers", {}).get(config_name, {}).get("env", {})
+                server_config = MCP_SERVERS.get(server_id, {})
+
+                for var in server_config.get("env_vars", []):
+                    # Check if key is empty in the actual config
+                    if not server_env.get(var):
+                        info = API_KEY_INFO.get(var, {})
+                        if info.get("required", False):
+                            missing_keys.append((var, info))
 
     if missing_keys:
         print("\n  ⚠️  Required keys still need to be added:")
