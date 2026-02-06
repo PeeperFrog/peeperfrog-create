@@ -130,7 +130,7 @@ def is_installed(install_dir):
 
 
 def git_pull(install_dir):
-    """Pull latest changes from remote."""
+    """Pull latest changes from remote and restore any deleted tracked files."""
     print("\n📥 Pulling latest updates...")
 
     # Check if setup.py is untracked (curl'd in) and would conflict
@@ -142,6 +142,14 @@ def git_pull(install_dir):
             # It's untracked - remove it so git pull can bring in the tracked version
             print("  Removing downloaded setup.py (will be replaced by tracked version)...")
             script_path.unlink()
+
+    # Check for deleted tracked files and restore them
+    deleted_files = run_command("git diff --name-only --diff-filter=D", cwd=install_dir, capture=True)
+    if deleted_files:
+        deleted_list = [f for f in deleted_files.strip().split('\n') if f]
+        if deleted_list:
+            print(f"  Restoring {len(deleted_list)} deleted file(s)...")
+            run_command("git checkout -- .", cwd=install_dir)
 
     result = run_command("git pull", cwd=install_dir, capture=True)
     if result is None:
@@ -711,6 +719,8 @@ def main():
 
         # Update skills
         skills_installed = install_skills(install_dir)
+        if skills_installed > 0:
+            skills_updated = True
 
         print("\n✅ Update complete!")
 
