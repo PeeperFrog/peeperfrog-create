@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025 PeeperFrog
+# Copyright (c) 2025 PeeperFrog Press
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+#
+# Not affiliated with Google, Gemini, OpenAI, Together AI, or WordPress.
+# All trademarks are property of their respective owners.
+# THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 """
-PEEPERFROG CREATE IMAGE MCP SERVER - v0.1
-Multi-provider image generation with quality tiers
+PeeperFrog Create Image MCP Server - Version 1.0 Beta
+
+Multi-provider image generation with quality tiers.
+Part of PeeperFrog Create: https://github.com/PeeperFrog/peeperfrog-create
 
 Supported providers:
 - gemini (Google): Pro (Gemini 3 Pro) and Fast (Gemini 2.5 Flash)

@@ -1,6 +1,18 @@
 #!/usr/bin/env python3
+# Copyright (c) 2025 PeeperFrog Press
+# Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+#
+# PeeperFrog Create is not affiliated with Anthropic, Claude, LinkedIn, Google,
+# Gemini, OpenAI, Together AI, WordPress, or any other third-party service.
+# All trademarks are property of their respective owners.
+#
+# THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+# See DISCLAIMER.md for full terms.
 """
 PeeperFrog Create - Smart Setup Script
+
+Version 1.0 Beta | Designed for Creators
+Supports Linux, macOS, and Windows
 
 This script handles both installation and updates:
 - First run: Clones repo, creates venvs, installs dependencies
@@ -12,6 +24,8 @@ Usage:
     python3 setup.py --restart    # Restart Claude Code after setup
     python3 setup.py --repair     # Force repair of broken installations
     python3 setup.py --health     # Run health check only (no updates)
+
+For more information: https://github.com/PeeperFrog/peeperfrog-create
 """
 
 import os

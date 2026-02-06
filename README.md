@@ -8,6 +8,28 @@
 MCP servers and Claude Skills for creative workflows.
 </p>
 
+<p align="center">
+<strong>Version 1.0 Beta</strong> | Designed for Creators
+</p>
+
+---
+
+> **Owned and maintained by [PeeperFrog Press](https://peeperfrog.com)**
+>
+> Open source under the [Apache 2.0 License](LICENSE)
+>
+> **Not affiliated with Anthropic, Claude, LinkedIn, Google, Gemini, OpenAI, or any other third-party service.** All product names, trademarks, and registered trademarks are the property of their respective owners. This project simply provides integrations to connect these services together.
+
+---
+
+## Status
+
+**Version 1.0 features are complete.** The project is currently in testing phase with a beta test program starting soon.
+
+**Platform support:** Linux, macOS, and Windows
+
+**Designed to complement:** Claude Desktop and Claude Code CLI
+
 ---
 
 ## What is PeeperFrog Create?
@@ -285,4 +307,10 @@ peeperfrog-create/
 
 ## License
 
-[Apache 2.0](LICENSE)
+[Apache 2.0](LICENSE) | [Full Disclaimer](DISCLAIMER.md)
+
+---
+
+<p align="center">
+<em>Made with care by <a href="https://peeperfrog.com">PeeperFrog Press</a></em>
+</p>

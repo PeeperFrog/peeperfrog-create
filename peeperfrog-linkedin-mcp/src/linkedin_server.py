@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-# Copyright (c) 2025 PeeperFrog
+# Copyright (c) 2025 PeeperFrog Press
 # Licensed under the Apache License, Version 2.0. See LICENSE file for details.
+#
+# Not affiliated with LinkedIn, Microsoft, or any other third-party service.
+# All trademarks are property of their respective owners.
+# THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
 """
-PeeperFrog LinkedIn MCP Server
+PeeperFrog LinkedIn MCP Server - Version 1.0 Beta
 
-Provides tools for posting to LinkedIn Company Pages via the LinkedIn Marketing API.
-Uses 3-legged OAuth with automatic token refresh.
+Provides tools for posting to LinkedIn personal profiles and Company Pages
+via the LinkedIn Marketing API. Uses 3-legged OAuth with automatic token refresh.
+
+Part of PeeperFrog Create: https://github.com/PeeperFrog/peeperfrog-create
 """
 
 import os

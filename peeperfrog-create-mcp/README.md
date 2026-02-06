@@ -4,7 +4,23 @@
 
 <h1 align="center">PeeperFrog Create MCP</h1>
 
-A multi-provider MCP (Model Context Protocol) server for AI image generation. Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single and batch generation, reference images, cost estimation, WebP conversion, and WordPress upload.
+<p align="center">
+A multi-provider MCP (Model Context Protocol) server for AI image generation.
+</p>
+
+<p align="center">
+<strong>Part of <a href="../README.md">PeeperFrog Create</a></strong> | Version 1.0 Beta
+</p>
+
+---
+
+> **Owned and maintained by [PeeperFrog Press](https://peeperfrog.com)** | Open source under [Apache 2.0](../LICENSE)
+>
+> **Not affiliated with Google, Gemini, OpenAI, Together AI, or WordPress.** All trademarks are property of their respective owners.
+
+---
+
+Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single and batch generation, reference images, cost estimation, WebP conversion, and WordPress upload.
 
 > **Installation:** See the [main README](../README.md#quick-start) for automated setup or manual installation instructions.
 
@@ -288,4 +304,4 @@ See `pricing.json` for full details including per-resolution breakdowns.
 
 ## License
 
-[Apache 2.0](../LICENSE)
+[Apache 2.0](../LICENSE) | See [DISCLAIMER](../DISCLAIMER.md) for warranty and liability terms.

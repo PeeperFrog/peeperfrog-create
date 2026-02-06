@@ -8,9 +8,19 @@
 An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 </p>
 
-> **Installation:** See the [main README](../README.md#quick-start) for automated setup or manual installation instructions.
+<p align="center">
+<strong>Part of <a href="../README.md">PeeperFrog Create</a></strong> | Version 1.0 Beta
+</p>
 
 ---
+
+> **Owned and maintained by [PeeperFrog Press](https://peeperfrog.com)** | Open source under [Apache 2.0](../LICENSE)
+>
+> **Not affiliated with LinkedIn, Microsoft, or any other third-party service.** All trademarks are property of their respective owners.
+
+---
+
+> **Installation:** See the [main README](../README.md#quick-start) for automated setup or manual installation instructions.
 
 ## Features
 
@@ -366,4 +376,4 @@ peeperfrog-linkedin-mcp/
 
 ## License
 
-[Apache 2.0](../LICENSE)
+[Apache 2.0](../LICENSE) | See [DISCLAIMER](../DISCLAIMER.md) for warranty and liability terms.
