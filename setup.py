@@ -365,8 +365,19 @@ def install_skills(install_dir):
     return count
 
 
-def print_claude_desktop_skills_instructions(install_dir):
-    """Print instructions for installing skills in Claude Desktop."""
+def get_os_type():
+    """Detect the operating system."""
+    system = platform.system().lower()
+    if system == "darwin":
+        return "macos"
+    elif system == "windows":
+        return "windows"
+    else:
+        return "linux"
+
+
+def print_claude_desktop_skills_instructions(install_dir, is_update=False):
+    """Print instructions for installing/updating skills in Claude Desktop."""
     skills_src = install_dir / "skills"
     if not skills_src.exists():
         return
@@ -378,15 +389,72 @@ def print_claude_desktop_skills_instructions(install_dir):
     print("\n" + "-" * 60)
     print("📱 For Claude Desktop (GUI app):")
     print("-" * 60)
-    print("Skills must be uploaded manually through the app:")
-    print("  1. Open Claude Desktop")
-    print("  2. Go to Settings > Capabilities")
-    print("  3. Toggle on 'Skills' if not already enabled")
-    print("  4. Click 'Add' > 'Upload a skill'")
-    print(f"  5. Upload files from: {skills_src}")
+
+    if is_update:
+        print("To update skills, you must re-upload them manually:")
+        print("  1. Open Claude Desktop")
+        print("  2. Go to Settings > Capabilities")
+        print("  3. Delete the old version of each skill you want to update")
+        print("  4. Click 'Add' > 'Upload a skill'")
+        print(f"  5. Upload the updated files from: {skills_src}")
+    else:
+        print("Skills must be uploaded manually through the app:")
+        print("  1. Open Claude Desktop")
+        print("  2. Go to Settings > Capabilities")
+        print("  3. Toggle on 'Skills' if not already enabled")
+        print("  4. Click 'Add' > 'Upload a skill'")
+        print(f"  5. Upload files from: {skills_src}")
+
     print()
     print("Skills sync between Claude Desktop and Claude.ai (web).")
     print("-" * 60)
+
+
+def print_restart_instructions(mcp_updated=False, skills_updated=False, install_dir=None):
+    """Print context-aware restart instructions based on OS and what changed."""
+    os_type = get_os_type()
+
+    if not mcp_updated and not skills_updated:
+        return
+
+    print("\n" + "=" * 60)
+    print("🔄 To Apply Changes")
+    print("=" * 60)
+
+    # Claude Code instructions
+    print("\n📟 Claude Code (CLI):")
+    if mcp_updated:
+        print("  MCP servers were updated. You must restart Claude Code:")
+        print("    1. Exit your current session (Ctrl+C or type /exit)")
+        print("    2. Run: claude")
+    if skills_updated and not mcp_updated:
+        print("  Skills are loaded fresh each session - just start a new session.")
+
+    # Claude Desktop instructions (only if MCP was updated or skills need uploading)
+    if mcp_updated:
+        print("\n📱 Claude Desktop (GUI app):")
+        print("  MCP servers were updated. You must restart Claude Desktop:")
+
+        if os_type == "macos":
+            print("    1. Quit completely: Cmd+Q or right-click dock icon > Quit")
+            print("    2. Relaunch Claude Desktop")
+        elif os_type == "windows":
+            print("    1. Quit completely: Right-click system tray icon > Exit")
+            print("    2. Relaunch Claude Desktop")
+        else:  # Linux
+            print("    1. Quit completely: Right-click system tray icon > Quit")
+            print("    2. Relaunch Claude Desktop")
+
+    if skills_updated and install_dir:
+        skills_src = install_dir / "skills"
+        print("\n  To update skills in Claude Desktop:")
+        print("    1. Open Settings > Capabilities")
+        print("    2. Delete old versions of updated skills")
+        print("    3. Click 'Add' > 'Upload a skill'")
+        print(f"    4. Upload from: {skills_src}")
+
+    print()
+    print("=" * 60)
 
 
 def find_claude_processes():
@@ -543,15 +611,32 @@ def main():
     needs_restart = False
     skills_installed = 0
 
+    # Track what changed for context-aware instructions
+    mcp_updated = False
+    skills_updated = False
+
     if already_installed:
         print(f"\n✅ Existing installation detected at: {install_dir}")
 
-        # Store hashes of requirements files before pull
+        # Store hashes of files before pull to detect changes
         req_hashes_before = {}
         for server_id, config in MCP_SERVERS.items():
             if "requirements_file" in config:
                 req_file = install_dir / server_id / config["requirements_file"]
                 req_hashes_before[server_id] = get_file_hash(req_file)
+
+        # Store hashes of MCP server scripts
+        server_hashes_before = {}
+        for server_id, config in MCP_SERVERS.items():
+            server_script = install_dir / server_id / config["server_script"]
+            server_hashes_before[server_id] = get_file_hash(server_script)
+
+        # Store hashes of skill files
+        skills_src = install_dir / "skills"
+        skill_hashes_before = {}
+        if skills_src.exists():
+            for skill_file in skills_src.glob("*.md"):
+                skill_hashes_before[skill_file.name] = get_file_hash(skill_file)
 
         # Pull updates
         if not git_pull(install_dir):
@@ -565,8 +650,28 @@ def main():
             req_file = install_dir / server_id / config["requirements_file"]
             if get_file_hash(req_file) != hash_before:
                 deps_changed = True
-                needs_restart = True
+                mcp_updated = True
                 print(f"\n📦 Dependencies changed for {config['name']}")
+
+        # Check if server scripts changed
+        for server_id, hash_before in server_hashes_before.items():
+            config = MCP_SERVERS[server_id]
+            server_script = install_dir / server_id / config["server_script"]
+            if get_file_hash(server_script) != hash_before:
+                mcp_updated = True
+                print(f"\n📝 Server code changed for {config['name']}")
+
+        # Check if skills changed
+        if skills_src.exists():
+            for skill_file in skills_src.glob("*.md"):
+                old_hash = skill_hashes_before.get(skill_file.name)
+                new_hash = get_file_hash(skill_file)
+                if old_hash != new_hash:
+                    skills_updated = True
+                    if old_hash is None:
+                        print(f"\n🆕 New skill: {skill_file.name}")
+                    else:
+                        print(f"\n📝 Skill updated: {skill_file.name}")
 
         # Update dependencies if changed
         if deps_changed:
@@ -582,19 +687,23 @@ def main():
 
         print("\n✅ Update complete!")
 
-        # Show Claude Desktop instructions
-        print_claude_desktop_skills_instructions(install_dir)
+        # Show context-aware instructions based on what changed
+        if mcp_updated or skills_updated:
+            print_restart_instructions(
+                mcp_updated=mcp_updated,
+                skills_updated=skills_updated,
+                install_dir=install_dir
+            )
 
-        # Handle restart
-        if needs_restart:
-            print("\n⚠️  MCP server code was updated. Restart required for changes to take effect.")
-            if do_restart:
-                restart_claude_code()
-            elif not update_only:
-                if prompt_yes_no("\nRestart Claude Code now?", default=False):
+            # Handle restart for Claude Code
+            if mcp_updated:
+                if do_restart:
                     restart_claude_code()
-                else:
-                    print("\n  Remember to restart Claude Code to apply changes.")
+                elif not update_only:
+                    if prompt_yes_no("\nRestart Claude Code now?", default=False):
+                        restart_claude_code()
+        else:
+            print("\n  No changes detected. Everything is up to date.")
 
     else:
         # Fresh installation
@@ -659,25 +768,45 @@ def main():
         # Install skills
         if not update_only and prompt_yes_no("\nInstall Claude Code Skills?"):
             skills_installed = install_skills(install_dir)
-            print_claude_desktop_skills_instructions(install_dir)
+            skills_updated = True
+            print_claude_desktop_skills_instructions(install_dir, is_update=False)
 
         # Generate and display MCP config
         mcp_config = generate_mcp_config(install_dir, servers_to_setup)
         print_mcp_config(mcp_config, servers_to_setup)
 
         print("\n✅ Installation complete!")
-        print("\nNext steps:")
-        print("  1. Add the MCP configuration above to your settings file")
-        print("  2. Replace the placeholder values with your actual API keys")
-        print("     (Remove lines for providers you don't need)")
-        print("  3. Restart Claude Code or Claude Desktop")
+
+        # Show next steps with OS-specific instructions
+        os_type = get_os_type()
+        print("\n" + "=" * 60)
+        print("📋 Next Steps")
+        print("=" * 60)
+        print("\n1. Add the MCP configuration above to your settings file")
+        print("2. Replace the placeholder values with your actual API keys")
+        print("   (Remove lines for providers you don't need)")
 
         # LinkedIn-specific instructions
         if "peeperfrog-linkedin-mcp" in servers_to_setup:
-            print("\n  For LinkedIn MCP (additional step):")
-            print(f"    cd {install_dir / 'peeperfrog-linkedin-mcp'}")
-            print("    source venv/bin/activate")
-            print("    python src/oauth_setup.py  # Complete OAuth flow in browser")
+            print("\n3. For LinkedIn MCP, complete the OAuth setup:")
+            print(f"     cd {install_dir / 'peeperfrog-linkedin-mcp'}")
+            print("     source venv/bin/activate")
+            print("     python src/oauth_setup.py")
+
+        print("\n4. Restart to load the new MCP servers:")
+        print("\n   Claude Code (CLI):")
+        print("     Just run: claude")
+
+        print("\n   Claude Desktop (GUI app):")
+        if os_type == "macos":
+            print("     Quit completely (Cmd+Q), then relaunch")
+        elif os_type == "windows":
+            print("     Right-click system tray > Exit, then relaunch")
+        else:
+            print("     Quit completely from system tray, then relaunch")
+
+        print()
+        print("=" * 60)
 
     return 0
 
