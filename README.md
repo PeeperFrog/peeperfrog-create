@@ -17,7 +17,8 @@ PeeperFrog Create is an **MCP (Model Context Protocol) server** with a growing s
 ### Capabilities
 
 - **Image generation** -- Multi-provider AI image generation supporting Google Gemini, OpenAI, and Together AI (FLUX). Includes auto mode, batch generation, reference images, cost estimation, automatic WebP conversion, and WordPress upload.
-- **Claude Skills** -- SKILL files for auto mode selection, manual provider control, and brand guideline templates. More Skills will be added as capabilities grow.
+- **LinkedIn posting** -- Post to personal profiles and Company Pages via the LinkedIn Marketing API. Supports text posts, link posts with previews, image posts, drafts, comments, reactions, and analytics.
+- **Claude Skills** -- SKILL files for image generation, LinkedIn posting, and brand guideline templates. More Skills will be added as capabilities grow.
 
 New capabilities and integrations with other services are in active development.
 
@@ -61,7 +62,44 @@ Add the MCP server to your settings file:
 }
 ```
 
-See the full [MCP server documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
+See the full [Image MCP documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
+
+### LinkedIn MCP Server
+
+The LinkedIn MCP server enables posting to personal profiles and Company Pages.
+
+```bash
+cd peeperfrog-create/peeperfrog-linkedin-mcp
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Add to your MCP settings:
+
+```json
+{
+  "mcpServers": {
+    "peeperfrog-linkedin": {
+      "command": "/path/to/peeperfrog-linkedin-mcp/venv/bin/python3",
+      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"],
+      "env": {
+        "LINKEDIN_CLIENT_ID": "your_client_id",
+        "LINKEDIN_CLIENT_SECRET": "your_client_secret",
+        "LINKEDIN_ORG_ID": "your_org_id"
+      }
+    }
+  }
+}
+```
+
+Then run OAuth setup:
+
+```bash
+python src/oauth_setup.py
+```
+
+See the full [LinkedIn MCP documentation](peeperfrog-linkedin-mcp/README.md) for setup, available tools, and usage examples.
 
 ## Installing Skills
 
@@ -78,6 +116,7 @@ Skills teach Claude how to use the MCP tools effectively. They work in both **Cl
 | `cost-estimation` | Estimate costs before generating -- compare providers and batch totals |
 | `webp-conversion` | Bulk convert images to WebP (auto conversion is now default) |
 | `wordpress-upload` | Upload WebP images to WordPress (credentials from config.json) |
+| `linkedin-posting` | Post to LinkedIn personal profiles and Company Pages |
 | `graphic-prompt-types` | Reference guide for graphic design prompt categories |
 | `example-brand-image-guidelines` | Template for brand-specific image style guides |
 
@@ -128,10 +167,13 @@ cp -r skills/* /path/to/your/project/.claude/skills/
 
 ```
 peeperfrog-create/
-├── peeperfrog-create-mcp/   # MCP server source
-│   ├── src/                   # Server code
-│   ├── scripts/               # Utility scripts (WebP conversion)
-│   └── README.md              # Full documentation
+├── peeperfrog-create-mcp/     # Image generation MCP server
+│   ├── src/                     # Server code
+│   ├── scripts/                 # Utility scripts (WebP conversion)
+│   └── README.md                # Full documentation
+├── peeperfrog-linkedin-mcp/   # LinkedIn MCP server
+│   ├── src/                     # Server code
+│   └── README.md                # Full documentation
 ├── skills/                    # Claude SKILL files
 ├── tests/                     # Test suite
 └── docs/                      # Project assets
