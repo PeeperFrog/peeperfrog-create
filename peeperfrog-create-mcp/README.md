@@ -6,6 +6,8 @@
 
 A multi-provider MCP (Model Context Protocol) server for AI image generation. Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single and batch generation, reference images, cost estimation, WebP conversion, and WordPress upload.
 
+> **Installation:** See the [main README](../README.md#quick-start) for automated setup or manual installation instructions.
+
 ## Supported Providers
 
 | Provider | Quality Tiers | Reference Images | Max Resolution | Approx. Cost |

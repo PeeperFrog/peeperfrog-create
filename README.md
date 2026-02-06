@@ -22,7 +22,62 @@ PeeperFrog Create is a collection of **MCP (Model Context Protocol) servers** wi
 
 New capabilities and integrations with other services are in active development.
 
+## Prerequisites
+
+Before you start, you'll need API keys for the services you want to use. You don't need all of them -- just the ones for your workflow.
+
+### For Image Generation MCP
+
+You need **at least one** of these (all are optional, use what you need):
+
+| Provider | Where to Get It | Notes |
+|----------|-----------------|-------|
+| **Google Gemini** | [Google AI Studio](https://aistudio.google.com/apikey) | Click "Create API key". Free tier available. |
+| **OpenAI** | [OpenAI Platform](https://platform.openai.com/api-keys) | Create a new secret key. Requires billing setup. |
+| **Together AI** | [Together AI Settings](https://api.together.xyz/settings/api-keys) | Copy your API key. Free credits on signup. |
+
+### For LinkedIn MCP
+
+| Credential | Where to Get It | Required? |
+|------------|-----------------|-----------|
+| **Client ID** | [LinkedIn Developers](https://www.linkedin.com/developers/apps) | Yes - Create an app, find in Auth tab |
+| **Client Secret** | [LinkedIn Developers](https://www.linkedin.com/developers/apps) | Yes - Find in Auth tab of your app |
+| **Organization ID** | Your Company Page admin URL | No - Only needed for Company Page posts |
+
+The setup script will guide you through what's needed and let you proceed even if you don't have keys ready yet.
+
 ## Quick Start
+
+### Automated Setup (Recommended)
+
+The setup script handles installation, updates, and configuration:
+
+```bash
+# Download and run the setup script
+curl -O https://raw.githubusercontent.com/PeeperFrog/peeperfrog-create/main/setup.py
+python3 setup.py
+```
+
+The script will:
+- Clone the repository (or pull updates if already installed)
+- Create virtual environments for each MCP server
+- Install dependencies
+- Copy config templates
+- Install Claude Skills
+- Generate MCP configuration for your settings file
+
+**To update an existing installation:**
+
+```bash
+cd ~/peeperfrog-create
+python3 setup.py
+```
+
+The script detects the existing installation and pulls updates. If dependencies changed, it reinstalls them automatically.
+
+### Manual Setup
+
+If you prefer to set things up manually:
 
 ```bash
 git clone https://github.com/PeeperFrog/peeperfrog-create.git
@@ -30,7 +85,7 @@ git clone https://github.com/PeeperFrog/peeperfrog-create.git
 
 Each MCP server has its own setup. Install only the servers you need.
 
-### MCP Settings File Location
+#### MCP Settings File Location
 
 | Client | OS | Path |
 |---|---|---|
@@ -39,14 +94,14 @@ Each MCP server has its own setup. Install only the servers you need.
 | **Claude Desktop** | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | **Claude Desktop** | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
-### Image Generation MCP
+#### Image Generation MCP
 
 ```bash
 cd peeperfrog-create/peeperfrog-create-mcp
 cp config.json.example config.json
 python3 -m venv venv
 source venv/bin/activate
-pip install requests
+pip install requests mcp
 ```
 
 Add to your MCP settings:
@@ -69,7 +124,7 @@ Add to your MCP settings:
 
 See the full [Image MCP documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
 
-### LinkedIn MCP
+#### LinkedIn MCP
 
 ```bash
 cd peeperfrog-create/peeperfrog-linkedin-mcp
@@ -165,6 +220,7 @@ cp -r skills/* /path/to/your/project/.claude/skills/
 
 ```
 peeperfrog-create/
+├── setup.py                   # Smart installer (install + update)
 ├── peeperfrog-create-mcp/     # Image generation MCP server
 │   ├── src/                     # Server code
 │   ├── scripts/                 # Utility scripts (WebP conversion)

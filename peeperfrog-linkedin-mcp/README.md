@@ -8,6 +8,8 @@
 An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 </p>
 
+> **Installation:** See the [main README](../README.md#quick-start) for automated setup or manual installation instructions.
+
 ---
 
 ## Features
