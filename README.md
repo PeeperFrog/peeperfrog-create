@@ -26,18 +26,11 @@ New capabilities and integrations with other services are in active development.
 
 ```bash
 git clone https://github.com/PeeperFrog/peeperfrog-create.git
-cd peeperfrog-create/peeperfrog-create-mcp
-
-cp config.json.example config.json
-cp .env.example .env
-# Add your API keys to .env
-
-python3 -m venv venv
-source venv/bin/activate
-pip install requests
 ```
 
-Add the MCP server to your settings file:
+Each MCP server has its own setup. Install only the servers you need.
+
+### MCP Settings File Location
 
 | Client | OS | Path |
 |---|---|---|
@@ -46,12 +39,24 @@ Add the MCP server to your settings file:
 | **Claude Desktop** | macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
 | **Claude Desktop** | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 
+### Image Generation MCP
+
+```bash
+cd peeperfrog-create/peeperfrog-create-mcp
+cp config.json.example config.json
+python3 -m venv venv
+source venv/bin/activate
+pip install requests
+```
+
+Add to your MCP settings:
+
 ```json
 {
   "mcpServers": {
     "peeperfrog-create": {
-      "command": "/path/to/peeperfrog-create/peeperfrog-create-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py"],
+      "command": "/path/to/peeperfrog-create-mcp/venv/bin/python3",
+      "args": ["/path/to/peeperfrog-create-mcp/src/image_server.py"],
       "env": {
         "GEMINI_API_KEY": "your-key",
         "OPENAI_API_KEY": "your-key",
@@ -64,15 +69,14 @@ Add the MCP server to your settings file:
 
 See the full [Image MCP documentation](peeperfrog-create-mcp/README.md) for provider details, auto mode, batch workflows, and pricing.
 
-### LinkedIn MCP Server
-
-The LinkedIn MCP server enables posting to personal profiles and Company Pages.
+### LinkedIn MCP
 
 ```bash
 cd peeperfrog-create/peeperfrog-linkedin-mcp
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python src/oauth_setup.py  # Complete OAuth flow in browser
 ```
 
 Add to your MCP settings:
@@ -91,12 +95,6 @@ Add to your MCP settings:
     }
   }
 }
-```
-
-Then run OAuth setup:
-
-```bash
-python src/oauth_setup.py
 ```
 
 See the full [LinkedIn MCP documentation](peeperfrog-linkedin-mcp/README.md) for setup, available tools, and usage examples.
