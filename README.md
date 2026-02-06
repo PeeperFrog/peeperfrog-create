@@ -75,6 +75,12 @@ python3 setup.py
 
 The script detects the existing installation and pulls updates. If dependencies changed, it reinstalls them automatically.
 
+**To update and restart Claude Code:**
+
+```bash
+python3 setup.py --restart
+```
+
 ### Manual Setup
 
 If you prefer to set things up manually:
@@ -154,9 +160,53 @@ Add to your MCP settings:
 
 See the full [LinkedIn MCP documentation](peeperfrog-linkedin-mcp/README.md) for setup, available tools, and usage examples.
 
+## Applying Changes After Updates
+
+After updating PeeperFrog Create, you need to restart for changes to take effect.
+
+### Claude Code (CLI)
+
+MCP servers and skills are loaded when Claude Code starts. To apply updates:
+
+```bash
+# Exit your current Claude Code session (Ctrl+C or type /exit)
+# Then restart:
+claude
+```
+
+Or use the setup script with `--restart`:
+
+```bash
+python3 setup.py --restart
+```
+
+Skills in `~/.claude/skills/` are read fresh each session -- no extra steps needed after the setup script copies them.
+
+### Claude Desktop (GUI app)
+
+**For MCP server updates:**
+
+1. Quit Claude Desktop completely (not just close the window)
+   - **macOS:** Right-click the dock icon > Quit, or Cmd+Q
+   - **Windows:** Right-click system tray icon > Exit
+   - **Linux:** Right-click system tray icon > Quit
+2. Relaunch Claude Desktop
+
+**For skill updates:**
+
+Skills in Claude Desktop are stored in the cloud and must be re-uploaded manually:
+
+1. Open **Settings > Capabilities**
+2. Find the skill you want to update
+3. Delete the old version
+4. Click **Add > Upload a skill**
+5. Upload the updated `SKILL.md` file from the `skills/` folder
+
+Skills sync automatically between Claude Desktop and Claude.ai (web) once uploaded.
+
 ## Installing Skills
 
-Skills teach Claude how to use the MCP tools effectively. They work in both **Claude Desktop** (the GUI app) and **Claude Code** (the CLI).
+Skills teach Claude how to use the MCP tools effectively. They work in both **Claude Desktop** (the GUI app) and **Claude Code** (the CLI), but are installed differently for each.
 
 ### Available skills
 
