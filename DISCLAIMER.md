@@ -10,12 +10,12 @@ THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPL
 
 - Anthropic or Claude
 - Google or Gemini
-- OpenAI
+- OpenAI or ChatCPT
 - Together AI
 - LinkedIn or Microsoft
 - WordPress or Automattic
 
-All product names, logos, trademarks, and registered trademarks are the property of their respective owners. This project simply provides integrations to connect these services together for the convenience of users.
+All product names, logos, trademarks, and registered trademarks are the property of their respective owners. This project simply provides integrations to connect these services for the convenience of users.
 
 ## Cost Responsibility
 
