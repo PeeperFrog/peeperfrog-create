@@ -45,7 +45,7 @@ description: Post text and links to LinkedIn personal profiles and Company Pages
 | `linkedin_get_post_impressions` | Get impressions for a post |
 | `linkedin_get_organization_statistics` | Get org-wide or per-post stats |
 | `linkedin_get_member_post_analytics` | Get personal post analytics |
-| `linkedin_token_status` | Check OAuth token expiration |
+| `linkedin_token_status` | Check and refresh OAuth token |
 
 ---
 
@@ -375,9 +375,9 @@ You can only delete comments that you (or your organization) created.
 
 ## Token Management
 
-LinkedIn access tokens expire every 60 days. The server automatically refreshes tokens within 7 days of expiration.
+LinkedIn access tokens expire every 60 days. The `linkedin_token_status` tool always refreshes the token to keep it at maximum validity.
 
-### Check token status
+### Check and refresh token
 
 ```javascript
 peeperfrog-linkedin:linkedin_token_status()
@@ -387,15 +387,15 @@ Response:
 
 ```json
 {
-  "valid": true,
+  "authenticated": true,
   "expires_at": "2026-04-05T10:30:00Z",
-  "expires_in_days": 58.5,
-  "is_expired": false,
-  "message": "Token expires in 58.5 days"
+  "expires_in_days": 60.0,
+  "refreshed_at": "2026-02-05T21:45:00",
+  "message": "Token refreshed. Valid for 60.0 days"
 }
 ```
 
-If the token is expired or refresh fails, re-run `oauth_setup.py` to re-authenticate.
+If the token is fully expired (past 60 days of inactivity), re-run `oauth_setup.py` to re-authenticate.
 
 ---
 

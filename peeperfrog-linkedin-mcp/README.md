@@ -169,7 +169,7 @@ This will:
 
 | Tool | Description |
 |------|-------------|
-| `linkedin_token_status` | Check OAuth token expiration status |
+| `linkedin_token_status` | Check and refresh OAuth token (always refreshes to extend validity) |
 
 ## Target Parameter
 
@@ -181,7 +181,7 @@ Most tools accept a `target` parameter to specify where to post:
 | `"organization"` or `"org"` | Post to default Company Page (from config) | Marketing Developer Platform |
 | `"12345678"` | Post to a specific organization by ID | Marketing Developer Platform |
 
-If omitted, defaults to `"organization"`. **For personal-only setups, always specify `target: "personal"`.**
+**Default behavior:** If `target` is omitted, it defaults to `"organization"`. However, if `LINKEDIN_ORG_ID` is not configured, the server automatically falls back to your personal profile.
 
 ## Usage Examples
 
@@ -191,7 +191,7 @@ If omitted, defaults to `"organization"`. **For personal-only setups, always spe
 Post to my personal LinkedIn: "Excited to share my thoughts on AI! #AI"
 ```
 
-### Post to Company Page (default)
+### Post to LinkedIn (uses Company Page if configured, otherwise personal)
 
 ```
 Post to LinkedIn: "Excited to announce our new product launch! #innovation"
@@ -280,14 +280,16 @@ LinkedIn access tokens expire every **60 days**. The server automatically:
 
 > **Important:** Auto-refresh only happens when you use the tool. If you don't use the LinkedIn MCP for more than 60 days, the token will expire and you'll need to re-run `oauth_setup.py` to re-authenticate.
 
-If automatic refresh fails, re-run `oauth_setup.py` to re-authenticate.
+If automatic refresh fails, re-run `python src/oauth_setup.py` to re-authenticate.
 
 ### Check Token Status
 
-Use the `linkedin_token_status` tool to see:
-- Days until expiration
-- Whether the token is valid
-- When it was last refreshed
+Use the `linkedin_token_status` tool to:
+- Refresh the token (extends validity to 60 days)
+- See days until expiration
+- Confirm the token is valid
+
+The tool always attempts a refresh to keep your token at maximum validity.
 
 ## API Limitations
 

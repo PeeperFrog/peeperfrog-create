@@ -1005,27 +1005,56 @@ async def post_image(content: str, image_path: str, visibility: str = "PUBLIC",
     return post_result
 
 def get_token_status() -> dict:
-    """Get current token status without exposing the token itself."""
+    """
+    Get current token status and refresh the token.
+
+    This function will:
+    - Report if no token exists
+    - Automatically refresh the token to extend validity
+    - Report if token is fully expired and needs re-authentication
+    """
     tokens = load_tokens()
 
     if not tokens.get("access_token"):
         return {
             "authenticated": False,
-            "message": "No access token found. Run the OAuth setup script."
+            "message": "No access token found. Run `python src/oauth_setup.py` to authenticate."
         }
 
     expires_at = tokens.get("expires_at", 0)
     expires_in_seconds = expires_at - time.time()
-    expires_in_days = expires_in_seconds / 86400
 
-    return {
-        "authenticated": True,
-        "expires_in_days": round(expires_in_days, 1),
-        "expires_at": datetime.fromtimestamp(expires_at).isoformat() if expires_at else None,
-        "refreshed_at": tokens.get("refreshed_at"),
-        "is_expired": is_token_expired(tokens),
-        "message": f"Token expires in {round(expires_in_days, 1)} days" if expires_in_days > 0 else "Token is expired"
-    }
+    # Check if token is fully expired (past expiration date)
+    if expires_in_seconds <= 0:
+        return {
+            "authenticated": False,
+            "expired": True,
+            "expires_at": datetime.fromtimestamp(expires_at).isoformat() if expires_at else None,
+            "message": "Token has expired. Run `python src/oauth_setup.py` to re-authenticate."
+        }
+
+    # Always refresh to keep token fresh
+    try:
+        tokens = refresh_access_token(tokens)
+        expires_at = tokens.get("expires_at", 0)
+        expires_in_days = (expires_at - time.time()) / 86400
+        return {
+            "authenticated": True,
+            "expires_in_days": round(expires_in_days, 1),
+            "expires_at": datetime.fromtimestamp(expires_at).isoformat(),
+            "refreshed_at": tokens.get("refreshed_at"),
+            "message": f"Token refreshed. Valid for {round(expires_in_days, 1)} days"
+        }
+    except Exception as e:
+        expires_in_days = expires_in_seconds / 86400
+        return {
+            "authenticated": True,
+            "expires_in_days": round(expires_in_days, 1),
+            "expires_at": datetime.fromtimestamp(expires_at).isoformat() if expires_at else None,
+            "refresh_failed": True,
+            "refresh_error": str(e),
+            "message": f"Token valid for {round(expires_in_days, 1)} days. Refresh failed: {e}"
+        }
 
 # ---------------------------------------------------------------------------
 # Analytics Functions
@@ -1431,7 +1460,7 @@ async def handle_list_tools():
         ),
         Tool(
             name="linkedin_token_status",
-            description="Check the status of the LinkedIn OAuth token (expiration, validity).",
+            description="Check and refresh the LinkedIn OAuth token. Always refreshes to extend validity. Reports if the token has expired and needs re-authentication.",
             inputSchema={
                 "type": "object",
                 "properties": {}
