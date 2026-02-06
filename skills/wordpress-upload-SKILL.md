@@ -69,6 +69,28 @@ The URL must match exactly what you pass to the tool (trailing slashes are norma
 
 ---
 
+## Finding Available WordPress Sites
+
+Call `list_wordpress_sites` once to discover configured sites, then use those URLs in subsequent calls:
+
+```javascript
+peeperfrog-create:list_wordpress_sites()
+```
+
+Response:
+```json
+{
+  "success": true,
+  "sites": ["https://site-one.com", "https://site-two.com"],
+  "count": 2,
+  "note": "Use these URLs with upload_to_wordpress or generate_image with upload_to_wordpress=true"
+}
+```
+
+**Note:** You only need to call this once per session. After that, use one of the returned URLs in your `wp_url` parameter for uploads.
+
+---
+
 ## Usage
 
 ### Basic upload

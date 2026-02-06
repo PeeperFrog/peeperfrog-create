@@ -1146,6 +1146,25 @@ def get_media_id_map(directory="batch", output_format="json"):
     }
 
 
+def list_wordpress_sites():
+    """List WordPress sites available for image uploads.
+
+    Returns URLs from config.json wordpress section.
+    Credentials are stored in config.json, not exposed here.
+    """
+    sites = []
+
+    if "wordpress" in CFG and isinstance(CFG["wordpress"], dict):
+        sites = sorted(list(CFG["wordpress"].keys()))
+
+    return {
+        "success": True,
+        "sites": sites,
+        "count": len(sites),
+        "note": "Use these URLs with upload_to_wordpress or generate_image with upload_to_wordpress=true"
+    }
+
+
 def estimate_image_cost(provider="gemini", quality="pro", aspect_ratio="1:1", image_size="large", num_reference_images=0, search_grounding=False, thinking_level=None, count=1, model=None, auto_mode=None, style_hint="general"):
     """Return a cost estimate without generating anything."""
     auto_selected = None
@@ -1372,6 +1391,15 @@ def handle_tools_list(request_id):
                     }
                 },
                 {
+                    "name": "list_wordpress_sites",
+                    "description": "List WordPress sites configured for image uploads. Returns URLs only (credentials are stored securely in config.json). Use these URLs with upload_to_wordpress or generate_image with upload_to_wordpress=true.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                },
+                {
                     "name": "get_generation_cost",
                     "description": "Query cost information from the generation log. Search by filename or date range. Returns matching records and total cost for auditing and cost tracking.",
                     "inputSchema": {
@@ -1469,6 +1497,8 @@ def handle_tool_call(request_id, tool_name, arguments):
                 arguments.get("directory", "batch"),
                 arguments.get("limit", 10)
             )
+        elif tool_name == "list_wordpress_sites":
+            result = list_wordpress_sites()
         elif tool_name == "get_generation_cost":
             result = get_cost_from_log(
                 arguments.get("filename"),

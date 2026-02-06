@@ -61,6 +61,7 @@ Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single
 | `get_generation_cost` | Query cost from generation log by filename or date range |
 | `convert_to_webp` | Bulk convert images to WebP (for older images or when auto conversion is disabled) |
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
+| `list_wordpress_sites` | List configured WordPress sites (URLs only, credentials stay secure) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
 | `get_media_id_map` | Get filename → WordPress media ID mapping without image data |
 
@@ -120,6 +121,10 @@ Edit `config.json` to add WordPress sites for image uploads:
 
 Create application passwords in WordPress: **Users > Profile > Application Passwords**
 
+**Security note:** Credentials stay in `config.json` (never exposed to Claude).
+
+**Finding available sites:** Use the `list_wordpress_sites` tool to see configured WordPress URLs, or ask Claude "What WordPress sites can I upload to?"
+
 ### 5. Install dependencies
 
 ```bash
@@ -153,7 +158,7 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
 }
 ```
 
-**Note:** No `env` block needed -- credentials are loaded from `.env` and `config.json` in the server directory.
+**Note:** API keys and WordPress credentials are loaded from `.env` and `config.json` in the server directory (not in Claude's config).
 
 ## Project Structure
 

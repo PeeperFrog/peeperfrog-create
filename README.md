@@ -121,8 +121,13 @@ The script will:
 **To update an existing installation:**
 
 ```bash
-cd ~/peeperfrog-create
-python3 setup.py
+~/peeperfrog-create/update-pfc.sh
+```
+
+Or with the full command:
+
+```bash
+cd ~/peeperfrog-create && python3 setup.py
 ```
 
 The script detects the existing installation and pulls updates. If dependencies changed, it reinstalls them automatically.
@@ -130,7 +135,7 @@ The script detects the existing installation and pulls updates. If dependencies 
 **To update and restart Claude Code:**
 
 ```bash
-python3 setup.py --restart
+~/peeperfrog-create/update-pfc.sh --restart
 ```
 
 ### Manual Setup
@@ -159,12 +164,13 @@ cd peeperfrog-create/peeperfrog-create-mcp
 cp config.json.example config.json
 cp .env.example .env
 # Edit .env with your API keys (Gemini, OpenAI, and/or Together AI)
+# Edit config.json to add WordPress sites (optional)
 python3 -m venv venv
 source venv/bin/activate
 pip install requests mcp
 ```
 
-Add to your MCP settings (no secrets needed - they're in .env):
+Add to your MCP settings (no secrets needed - they're in .env and config.json):
 
 ```json
 {
@@ -317,6 +323,7 @@ cp -r skills/* /path/to/your/project/.claude/skills/
 ```
 peeperfrog-create/
 ├── setup.py                   # Smart installer (install + update)
+├── update-pfc.sh              # Quick update script (runs setup.py)
 ├── peeperfrog-create-mcp/     # Image generation MCP server
 │   ├── src/                     # Server code
 │   ├── scripts/                 # Utility scripts (WebP conversion)
