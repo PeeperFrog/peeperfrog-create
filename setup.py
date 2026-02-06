@@ -825,8 +825,26 @@ def add_servers_to_config(config_path, mcp_config, config_type="desktop"):
     if "mcpServers" not in existing:
         existing["mcpServers"] = {}
 
-    # Merge in new servers
+    # Merge in new servers, preserving existing env vars (API keys)
     for server_name, server_config in mcp_config.get("mcpServers", {}).items():
+        if server_name in existing["mcpServers"]:
+            # Server already exists - preserve existing env vars that have values
+            existing_env = existing["mcpServers"][server_name].get("env", {})
+            new_env = server_config.get("env", {})
+
+            # Start with new env vars
+            merged_env = dict(new_env)
+
+            # Preserve existing values that are non-empty
+            for key, value in existing_env.items():
+                if value and value not in ("", "YOUR_LINKEDIN_CLIENT_ID_HERE",
+                                           "YOUR_LINKEDIN_CLIENT_SECRET_HERE"):
+                    merged_env[key] = value
+
+            # Update server config with merged env
+            server_config = dict(server_config)
+            server_config["env"] = merged_env
+
         existing["mcpServers"][server_name] = server_config
 
     return write_config_file(config_path, existing)
