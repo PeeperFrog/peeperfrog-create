@@ -10,6 +10,8 @@ Usage:
     python3 setup.py              # Interactive setup
     python3 setup.py --update     # Update only (skip prompts)
     python3 setup.py --restart    # Restart Claude Code after setup
+    python3 setup.py --repair     # Force repair of broken installations
+    python3 setup.py --health     # Run health check only (no updates)
 """
 
 import os
@@ -242,6 +244,339 @@ def setup_config(mcp_dir, server_config):
         shutil.copy(config_example, config_file)
         return True
 
+    return True
+
+
+def check_venv_health(mcp_dir):
+    """Check if virtual environment is functional.
+
+    Returns:
+        dict with keys:
+            - healthy: bool - overall health status
+            - issues: list of strings describing problems
+            - can_repair: bool - whether issues can be auto-repaired
+    """
+    venv_dir = mcp_dir / "venv"
+    issues = []
+
+    # Check venv directory exists
+    if not venv_dir.exists():
+        return {"healthy": False, "issues": ["Virtual environment missing"], "can_repair": True}
+
+    # Check python binary exists and is executable
+    python_bin = venv_dir / "bin" / "python"
+    if not python_bin.exists():
+        issues.append("Python binary missing from venv")
+    elif not os.access(python_bin, os.X_OK):
+        issues.append("Python binary not executable")
+    else:
+        # Try to run python
+        try:
+            result = subprocess.run(
+                [str(python_bin), "-c", "import sys; print(sys.version)"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                issues.append(f"Python not working: {result.stderr.strip()}")
+        except subprocess.TimeoutExpired:
+            issues.append("Python binary hangs/times out")
+        except Exception as e:
+            issues.append(f"Python error: {e}")
+
+    # Check pip exists and works
+    pip_bin = venv_dir / "bin" / "pip"
+    if not pip_bin.exists():
+        issues.append("pip missing from venv")
+    else:
+        try:
+            result = subprocess.run(
+                [str(pip_bin), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                issues.append("pip not working properly")
+        except Exception:
+            issues.append("pip error")
+
+    return {
+        "healthy": len(issues) == 0,
+        "issues": issues,
+        "can_repair": True  # venv issues can always be repaired by recreating
+    }
+
+
+def check_dependencies_installed(mcp_dir, server_config):
+    """Check if key dependencies are importable.
+
+    Returns:
+        dict with keys:
+            - healthy: bool
+            - issues: list of strings
+            - can_repair: bool
+    """
+    venv_python = mcp_dir / "venv" / "bin" / "python"
+    if not venv_python.exists():
+        return {"healthy": False, "issues": ["venv python missing"], "can_repair": True}
+
+    issues = []
+
+    # Get list of packages to check
+    packages_to_check = []
+
+    if "dependencies" in server_config:
+        packages_to_check.extend(server_config["dependencies"])
+
+    if "requirements_file" in server_config:
+        req_file = mcp_dir / server_config["requirements_file"]
+        if req_file.exists():
+            for line in req_file.read_text().splitlines():
+                line = line.strip()
+                if line and not line.startswith("#"):
+                    # Extract package name (remove version specifiers)
+                    pkg = line.split(">=")[0].split("==")[0].split("<")[0].split(">")[0].strip()
+                    if pkg:
+                        packages_to_check.append(pkg)
+
+    # Always check mcp is importable for MCP servers
+    if "mcp" not in packages_to_check:
+        packages_to_check.append("mcp")
+
+    for pkg in packages_to_check:
+        try:
+            result = subprocess.run(
+                [str(venv_python), "-c", f"import {pkg}"],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                issues.append(f"Package '{pkg}' not importable")
+        except Exception:
+            issues.append(f"Error checking package '{pkg}'")
+
+    return {
+        "healthy": len(issues) == 0,
+        "issues": issues,
+        "can_repair": True
+    }
+
+
+def check_config_health(mcp_dir, server_config):
+    """Check if config file exists and has valid structure.
+
+    Returns:
+        dict with keys:
+            - healthy: bool
+            - issues: list of strings
+            - can_repair: bool
+    """
+    if "config_file" not in server_config:
+        return {"healthy": True, "issues": [], "can_repair": True}
+
+    config_file = mcp_dir / server_config["config_file"]
+    issues = []
+
+    if not config_file.exists():
+        # Check if example exists - if so, we can repair
+        config_example = mcp_dir / server_config.get("config_example", "")
+        can_repair = config_example.exists() if config_example else False
+        return {
+            "healthy": False,
+            "issues": [f"Config file missing: {server_config['config_file']}"],
+            "can_repair": can_repair
+        }
+
+    # Try to parse as JSON
+    try:
+        with open(config_file) as f:
+            config_data = json.load(f)
+    except json.JSONDecodeError as e:
+        return {
+            "healthy": False,
+            "issues": [f"Config file has invalid JSON: {e}"],
+            "can_repair": False  # Can't auto-fix corrupted JSON
+        }
+    except Exception as e:
+        return {
+            "healthy": False,
+            "issues": [f"Error reading config: {e}"],
+            "can_repair": False
+        }
+
+    return {"healthy": True, "issues": [], "can_repair": True}
+
+
+def check_server_script_exists(mcp_dir, server_config):
+    """Check if the main server script exists.
+
+    Returns:
+        dict with keys:
+            - healthy: bool
+            - issues: list of strings
+            - can_repair: bool
+    """
+    server_script = mcp_dir / server_config["server_script"]
+
+    if not server_script.exists():
+        return {
+            "healthy": False,
+            "issues": [f"Server script missing: {server_config['server_script']}"],
+            "can_repair": True  # git checkout can restore it
+        }
+
+    return {"healthy": True, "issues": [], "can_repair": True}
+
+
+def run_health_check(install_dir, verbose=True):
+    """Run comprehensive health check on all installed servers.
+
+    Returns:
+        dict with server_id keys, each containing:
+            - healthy: bool
+            - issues: list of all issues
+            - can_repair: bool
+            - checks: dict of individual check results
+    """
+    results = {}
+
+    for server_id, server_config in MCP_SERVERS.items():
+        mcp_dir = install_dir / server_id
+
+        if not mcp_dir.exists():
+            results[server_id] = {
+                "healthy": False,
+                "issues": ["Server directory missing"],
+                "can_repair": True,
+                "checks": {},
+                "exists": False
+            }
+            continue
+
+        checks = {
+            "venv": check_venv_health(mcp_dir),
+            "dependencies": check_dependencies_installed(mcp_dir, server_config),
+            "config": check_config_health(mcp_dir, server_config),
+            "server_script": check_server_script_exists(mcp_dir, server_config),
+        }
+
+        all_issues = []
+        can_repair_all = True
+
+        for check_name, check_result in checks.items():
+            all_issues.extend(check_result["issues"])
+            if not check_result["can_repair"]:
+                can_repair_all = False
+
+        results[server_id] = {
+            "healthy": len(all_issues) == 0,
+            "issues": all_issues,
+            "can_repair": can_repair_all,
+            "checks": checks,
+            "exists": True
+        }
+
+    return results
+
+
+def print_health_report(health_results):
+    """Print a formatted health report."""
+    all_healthy = all(r["healthy"] for r in health_results.values())
+
+    if all_healthy:
+        print("\n✅ All servers are healthy")
+        return
+
+    print("\n" + "=" * 60)
+    print("🏥 Health Check Report")
+    print("=" * 60)
+
+    for server_id, result in health_results.items():
+        server_name = MCP_SERVERS[server_id]["name"]
+
+        if result["healthy"]:
+            print(f"\n  ✅ {server_name}: Healthy")
+        else:
+            status = "⚠️" if result["can_repair"] else "❌"
+            print(f"\n  {status} {server_name}:")
+            for issue in result["issues"]:
+                print(f"      • {issue}")
+            if result["can_repair"]:
+                print("      → Can be auto-repaired")
+            else:
+                print("      → Manual intervention required")
+
+
+def repair_server(install_dir, server_id, health_result):
+    """Attempt to repair a broken server installation.
+
+    Returns True if repair was successful.
+    """
+    server_config = MCP_SERVERS[server_id]
+    mcp_dir = install_dir / server_id
+
+    print(f"\n🔧 Repairing {server_config['name']}...")
+
+    # If directory is missing, we can't repair without fresh install
+    if not health_result.get("exists", True):
+        print("  Server directory missing - will be restored via git")
+        # Try git checkout to restore the directory
+        result = run_command(f"git checkout HEAD -- {server_id}", cwd=install_dir, capture=True)
+        if result is None:
+            print("  ❌ Could not restore server directory")
+            return False
+        print("  ✅ Server directory restored")
+
+    checks = health_result.get("checks", {})
+    venv_recreated = False
+
+    # Repair venv if needed
+    venv_check = checks.get("venv", {})
+    if not venv_check.get("healthy", True):
+        print("  Recreating virtual environment...")
+        venv_dir = mcp_dir / "venv"
+        if venv_dir.exists():
+            shutil.rmtree(venv_dir)
+        if not setup_venv(mcp_dir):
+            print("  ❌ Failed to create virtual environment")
+            return False
+        print("  ✅ Virtual environment recreated")
+        venv_recreated = True
+
+    # Reinstall dependencies if needed (always reinstall if venv was recreated)
+    deps_check = checks.get("dependencies", {})
+    if not deps_check.get("healthy", True) or venv_recreated:
+        print("  Reinstalling dependencies...")
+        if not install_dependencies(mcp_dir, server_config):
+            print("  ❌ Failed to install dependencies")
+            return False
+        print("  ✅ Dependencies installed")
+
+    # Restore config if needed
+    config_check = checks.get("config", {})
+    if not config_check.get("healthy", True) and config_check.get("can_repair", False):
+        print("  Restoring config file...")
+        setup_config(mcp_dir, server_config)
+        print("  ✅ Config file restored from example")
+
+    # Restore server script if needed
+    script_check = checks.get("server_script", {})
+    if not script_check.get("healthy", True):
+        print("  Restoring server script...")
+        result = run_command(
+            f"git checkout HEAD -- {server_id}/{server_config['server_script']}",
+            cwd=install_dir,
+            capture=True
+        )
+        if result is None:
+            print("  ❌ Could not restore server script")
+            return False
+        print("  ✅ Server script restored")
+
+    print(f"  ✅ {server_config['name']} repaired!")
     return True
 
 
@@ -867,6 +1202,8 @@ def main():
     # Parse arguments
     update_only = "--update" in sys.argv
     do_restart = "--restart" in sys.argv
+    do_repair = "--repair" in sys.argv
+    health_only = "--health" in sys.argv
 
     # Determine install directory
     install_dir = DEFAULT_INSTALL_DIR
@@ -895,32 +1232,44 @@ def main():
     if already_installed:
         print(f"\n✅ Existing installation detected at: {install_dir}")
 
-        # Check if venvs exist, recreate if missing
-        venvs_missing = []
-        for server_id, config in MCP_SERVERS.items():
-            mcp_dir = install_dir / server_id
-            venv_dir = mcp_dir / "venv"
-            if mcp_dir.exists() and not venv_dir.exists():
-                venvs_missing.append(server_id)
+        # Run comprehensive health check
+        print("\n🔍 Running health check...")
+        health_results = run_health_check(install_dir)
 
-        if venvs_missing:
-            print("\n⚠️  Virtual environments missing. Recreating...")
-            for server_id in venvs_missing:
-                server_config = MCP_SERVERS[server_id]
-                mcp_dir = install_dir / server_id
-                print(f"\n🔧 Setting up {server_config['name']}...")
+        # Check if any servers have issues
+        unhealthy_servers = {sid: r for sid, r in health_results.items() if not r["healthy"]}
 
-                if not setup_venv(mcp_dir):
-                    print(f"  Failed to create virtual environment")
-                    continue
+        if unhealthy_servers:
+            print_health_report(health_results)
 
-                if not install_dependencies(mcp_dir, server_config):
-                    print(f"  Failed to install dependencies")
-                    continue
+            # Check if all issues are repairable
+            all_repairable = all(r["can_repair"] for r in unhealthy_servers.values())
 
-                setup_config(mcp_dir, server_config)
-                print(f"  ✅ {server_config['name']} ready!")
-                mcp_updated = True
+            if do_repair or (not update_only and not health_only):
+                if do_repair:
+                    do_repairs = True
+                elif all_repairable:
+                    do_repairs = prompt_yes_no("\nAttempt to repair these issues?", default=True)
+                else:
+                    print("\n⚠️  Some issues cannot be auto-repaired.")
+                    do_repairs = prompt_yes_no("Attempt to repair what we can?", default=True)
+
+                if do_repairs:
+                    for server_id, result in unhealthy_servers.items():
+                        if result["can_repair"]:
+                            if repair_server(install_dir, server_id, result):
+                                mcp_updated = True
+                        else:
+                            print(f"\n⚠️  {MCP_SERVERS[server_id]['name']}: Manual repair needed")
+                            for issue in result["issues"]:
+                                print(f"      • {issue}")
+        else:
+            print("  ✅ All servers healthy")
+
+        # If health check only, exit here
+        if health_only:
+            print("\n✅ Health check complete!")
+            return 0
 
         # Store hashes of files before pull to detect changes
         req_hashes_before = {}
