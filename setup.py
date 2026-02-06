@@ -351,12 +351,24 @@ def print_mcp_config(config, selected_servers):
     print("    Windows:      %APPDATA%\\Claude\\claude_desktop_config.json")
 
 
+def is_claude_code_installed():
+    """Check if Claude Code CLI is installed."""
+    result = run_command("which claude", capture=True)
+    return result is not None and len(result.strip()) > 0
+
+
 def install_skills(install_dir):
     """Copy skills to Claude Code skills directory."""
     skills_src = install_dir / "skills"
     skills_dest = Path.home() / ".claude" / "skills"
 
     if not skills_src.exists():
+        return 0
+
+    # Check if Claude Code CLI is installed
+    if not is_claude_code_installed():
+        print("\n📝 Skipping Claude Code skills (CLI not installed)")
+        print("   Skills are available in: {}/skills/".format(install_dir))
         return 0
 
     print("\n🎯 Installing Claude Code Skills...")
