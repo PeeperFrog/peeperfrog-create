@@ -4,8 +4,7 @@
 
 <h1 align="center">PeeperFrog Create</h1>
 
-<h2 align="center">
-Like Bluetooth for AI
+<h2 align="center">Like Bluetooth for AI</h2>
 </p>
 
 <p align="center">
@@ -24,7 +23,7 @@ Like Bluetooth for AI
 
 ## Status
 
-**Version 1.0 features are complete.** The project is currently in testing phase with a beta test program starting soon.
+**Version 1.0 features are complete.** The project is currently in the testing phase with a beta test program starting soon.
 
 **Platform support:** Linux, macOS, and Windows
 
@@ -264,7 +263,7 @@ Skills teach Claude how to use the MCP tools effectively. They work in both **Cl
 | `image-manual-control` | Manual provider/model selection and advanced options |
 | `image-queue-management` | Manage batch queue -- add, remove, view, and run queued images |
 | `cost-estimation` | Estimate costs before generating -- compare providers and batch totals |
-| `webp-conversion` | Bulk convert images to WebP (auto conversion is now default) |
+| `webp-conversion` | Bulk convert images to WebP (auto conversion is the default) |
 | `wordpress-upload` | Upload WebP images to WordPress (credentials from config.json) |
 | `linkedin-posting` | Post to LinkedIn personal profiles and Company Pages |
 | `graphic-prompt-types` | Reference guide for graphic design prompt categories |
