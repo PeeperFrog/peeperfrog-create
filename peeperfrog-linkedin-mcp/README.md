@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../docs/logo%20for%20LinkedIn.webp" alt="PeeperFrog" width="200">
+  <img src="docs/logo for LinkedIn.webp" alt="PeeperFrog" width="200">
 </p>
 
 <h1 align="center">PeeperFrog LinkedIn MCP</h1>
