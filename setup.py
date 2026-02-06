@@ -170,9 +170,30 @@ def git_pull(install_dir):
 def clone_repo(install_dir):
     """Clone the repository."""
     print(f"\n📦 Cloning repository to {install_dir}...")
+
     if install_dir.exists():
-        print(f"  Directory exists but is not a git repo. Remove it first.")
-        return False
+        # Check if directory only contains setup.py (curl'd in)
+        contents = list(install_dir.iterdir())
+        setup_only = len(contents) == 1 and contents[0].name == "setup.py"
+
+        if setup_only:
+            # Directory has only the curl'd setup.py - use git init + pull
+            print("  Initializing repository...")
+            if not run_command("git init", cwd=install_dir):
+                return False
+            if not run_command(f"git remote add origin {REPO_URL}", cwd=install_dir):
+                return False
+            if not run_command("git fetch origin", cwd=install_dir):
+                return False
+            # Remove the curl'd setup.py so checkout doesn't conflict
+            (install_dir / "setup.py").unlink()
+            if not run_command("git checkout origin/main -b main", cwd=install_dir):
+                return False
+            return True
+        else:
+            print(f"  Directory exists but is not a git repo. Remove it first.")
+            return False
+
     return run_command(f"git clone {REPO_URL} {install_dir}")
 
 
