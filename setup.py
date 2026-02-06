@@ -657,16 +657,13 @@ def generate_mcp_config(install_dir, selected_servers, collected_keys=None):
         else:
             config_name = server_id.replace("-mcp", "")
 
-        # Build env vars - use empty string for optional keys without values
+        # Build env vars - use empty string for missing keys
+        # Empty strings let the server give clear "missing key" errors
         env_dict = {}
         for var in server_config.get("env_vars", []):
-            info = API_KEY_INFO.get(var, {})
             if var in collected_keys and collected_keys[var]:
                 env_dict[var] = collected_keys[var]
-            elif info.get("required", False):
-                env_dict[var] = f"YOUR_{var}_HERE"
             else:
-                # Empty string for optional keys - safe default
                 env_dict[var] = ""
 
         config["mcpServers"][config_name] = {
@@ -837,8 +834,7 @@ def add_servers_to_config(config_path, mcp_config, config_type="desktop"):
 
             # Preserve existing values that are non-empty
             for key, value in existing_env.items():
-                if value and value not in ("", "YOUR_LINKEDIN_CLIENT_ID_HERE",
-                                           "YOUR_LINKEDIN_CLIENT_SECRET_HERE"):
+                if value:
                     merged_env[key] = value
 
             # Update server config with merged env
