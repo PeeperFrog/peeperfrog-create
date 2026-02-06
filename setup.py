@@ -129,9 +129,28 @@ def is_installed(install_dir):
 def git_pull(install_dir):
     """Pull latest changes from remote."""
     print("\n📥 Pulling latest updates...")
+
+    # Check if setup.py is untracked (curl'd in) and would conflict
+    script_path = install_dir / "setup.py"
+    if script_path.exists():
+        # Check if it's untracked
+        status = run_command("git status --porcelain setup.py", cwd=install_dir, capture=True)
+        if status and status.startswith("??"):
+            # It's untracked - remove it so git pull can bring in the tracked version
+            print("  Removing downloaded setup.py (will be replaced by tracked version)...")
+            script_path.unlink()
+
     result = run_command("git pull", cwd=install_dir, capture=True)
     if result is None:
-        print("  Failed to pull updates")
+        # Try to get more info about the error
+        error_check = run_command("git pull 2>&1", cwd=install_dir, capture=True)
+        if error_check and "untracked working tree files would be overwritten" in error_check:
+            print("  Error: Untracked files would be overwritten by update.")
+            print("  Please commit or remove these files, then run setup.py again:")
+            # Show which files
+            run_command("git status --short", cwd=install_dir)
+        else:
+            print("  Failed to pull updates")
         return False
     print(f"  {result}")
     return True
