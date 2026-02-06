@@ -993,6 +993,38 @@ def main():
 
         print("\n✅ Update complete!")
 
+        # Check if servers are missing from Claude Desktop config
+        if not update_only:
+            desktop_config_path = get_claude_desktop_config_path()
+            if desktop_config_path:
+                config = read_config_file(desktop_config_path)
+                mcp_servers = config.get("mcpServers", {}) if config else {}
+
+                # Check which installed servers are missing from config
+                missing_servers = []
+                for server_id in MCP_SERVERS:
+                    mcp_dir = install_dir / server_id
+                    if mcp_dir.exists():
+                        # Map server_id to config name
+                        if server_id == "peeperfrog-create-mcp":
+                            config_name = "peeperfrog-create"
+                        elif server_id == "peeperfrog-linkedin-mcp":
+                            config_name = "peeperfrog-linkedin"
+                        else:
+                            config_name = server_id.replace("-mcp", "")
+
+                        if config_name not in mcp_servers:
+                            missing_servers.append(server_id)
+
+                if missing_servers:
+                    print(f"\n⚠️  {len(missing_servers)} server(s) not in Claude Desktop config:")
+                    for sid in missing_servers:
+                        print(f"    • {MCP_SERVERS[sid]['name']}")
+
+                    if prompt_yes_no("\nAdd missing servers to config?", default=True):
+                        offer_config_setup(install_dir, missing_servers)
+                        mcp_updated = True
+
         # Show context-aware instructions based on what changed
         if mcp_updated or skills_updated:
             print_restart_instructions(
