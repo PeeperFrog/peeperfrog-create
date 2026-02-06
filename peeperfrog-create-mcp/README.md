@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="docs/logo.png" alt="PeeperFrog Create" width="200">
+  <img src="docs/logo for Image Creation.png" alt="PeeperFrog Create" width="200">
 </p>
 
 <h1 align="center">PeeperFrog Create MCP</h1>
 
 <p align="center">
-A multi-provider MCP (Model Context Protocol) server for AI image generation.
+A multi-provider MCP (Model Context Protocol) server for AI image generation, compression, and upload.
 </p>
 
 <p align="center">
