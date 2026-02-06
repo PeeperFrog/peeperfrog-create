@@ -96,15 +96,39 @@ OPENAI_API_KEY=your-openai-api-key-here
 TOGETHER_API_KEY=your-together-api-key-here
 ```
 
-### 4. Install dependencies
+**Security:** Keys are stored in `.env` (not in Claude's config), keeping them out of Claude's view.
+
+### 4. Configure WordPress (optional)
+
+Edit `config.json` to add WordPress sites for image uploads:
+
+```json
+{
+  "wordpress": {
+    "https://yoursite.com": {
+      "user": "your-username",
+      "password": "your-application-password",
+      "alt_text_prefix": "AI-generated image: "
+    },
+    "https://anothersite.com": {
+      "user": "another-user",
+      "password": "another-app-password"
+    }
+  }
+}
+```
+
+Create application passwords in WordPress: **Users > Profile > Application Passwords**
+
+### 5. Install dependencies
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install requests
+pip install requests mcp
 ```
 
-### 5. Add to your MCP client
+### 6. Add to your MCP client
 
 #### Claude Code
 
@@ -123,16 +147,13 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
   "mcpServers": {
     "peeperfrog-create": {
       "command": "/path/to/peeperfrog-create/peeperfrog-create-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py"],
-      "env": {
-        "GEMINI_API_KEY": "your-key",
-        "OPENAI_API_KEY": "your-key",
-        "TOGETHER_API_KEY": "your-key"
-      }
+      "args": ["/path/to/peeperfrog-create/peeperfrog-create-mcp/src/image_server.py"]
     }
   }
 }
 ```
+
+**Note:** No `env` block needed -- credentials are loaded from `.env` and `config.json` in the server directory.
 
 ## Project Structure
 

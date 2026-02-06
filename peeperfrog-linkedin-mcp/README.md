@@ -69,12 +69,28 @@ An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 
 ```bash
 cd peeperfrog-linkedin-mcp
+cp .env.example .env
+# Edit .env with your LinkedIn Client ID and Secret
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Add to your MCP client
+### 3. Configure credentials
+
+Edit `.env` with your LinkedIn app credentials:
+
+```
+LINKEDIN_CLIENT_ID=your-client-id
+LINKEDIN_CLIENT_SECRET=your-client-secret
+LINKEDIN_ORG_ID=your-organization-id-optional
+```
+
+**Security:** Keys are stored in `.env` (not in Claude's config), keeping them out of Claude's view.
+
+> **Note:** `LINKEDIN_ORG_ID` is optional - only needed for Company Page features. To find your Organization ID, go to your Company Page admin URL: `https://www.linkedin.com/company/12345678/admin/` → the ID is `12345678`
+
+### 4. Add to your MCP client
 
 #### Claude Code
 
@@ -93,20 +109,15 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
   "mcpServers": {
     "peeperfrog-linkedin": {
       "command": "/path/to/peeperfrog-linkedin-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"],
-      "env": {
-        "LINKEDIN_CLIENT_ID": "your_client_id",
-        "LINKEDIN_CLIENT_SECRET": "your_client_secret",
-        "LINKEDIN_ORG_ID": "your_org_id"
-      }
+      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"]
     }
   }
 }
 ```
 
-> **Note:** `LINKEDIN_ORG_ID` is optional - only needed for Company Page features. To find your Organization ID, go to your Company Page admin URL: `https://www.linkedin.com/company/12345678/admin/` → the ID is `12345678`
+**Note:** No `env` block needed -- credentials are loaded from `.env` in the server directory.
 
-### 4. Run OAuth Setup
+### 5. Run OAuth Setup
 
 ```bash
 cd peeperfrog-linkedin-mcp

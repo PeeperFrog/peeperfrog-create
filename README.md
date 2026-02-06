@@ -112,9 +112,12 @@ The script will:
 - Clone the repository (or pull updates if already installed)
 - Create virtual environments for each MCP server
 - Install dependencies
-- Copy config templates
+- Collect and securely store your API keys (in local `.env` files)
+- Configure WordPress sites for image uploads (optional)
 - Install Claude Skills
 - Generate MCP configuration for your settings file
+
+**Security:** API keys are stored in `.env` files within the codebase, not in Claude's settings. This keeps your credentials out of Claude's view.
 
 **To update an existing installation:**
 
@@ -155,24 +158,21 @@ Each MCP server has its own setup. Install only the servers you need.
 ```bash
 cd peeperfrog-create/peeperfrog-create-mcp
 cp config.json.example config.json
+cp .env.example .env
+# Edit .env with your API keys (Gemini, OpenAI, and/or Together AI)
 python3 -m venv venv
 source venv/bin/activate
 pip install requests mcp
 ```
 
-Add to your MCP settings:
+Add to your MCP settings (no secrets needed - they're in .env):
 
 ```json
 {
   "mcpServers": {
     "peeperfrog-create": {
       "command": "/path/to/peeperfrog-create-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-create-mcp/src/image_server.py"],
-      "env": {
-        "GEMINI_API_KEY": "your-key",
-        "OPENAI_API_KEY": "your-key",
-        "TOGETHER_API_KEY": "your-key"
-      }
+      "args": ["/path/to/peeperfrog-create-mcp/src/image_server.py"]
     }
   }
 }
@@ -184,25 +184,22 @@ See the full [Image MCP documentation](peeperfrog-create-mcp/README.md) for prov
 
 ```bash
 cd peeperfrog-create/peeperfrog-linkedin-mcp
+cp .env.example .env
+# Edit .env with your LinkedIn Client ID and Secret
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 python src/oauth_setup.py  # Complete OAuth flow in browser
 ```
 
-Add to your MCP settings:
+Add to your MCP settings (no secrets needed - they're in .env):
 
 ```json
 {
   "mcpServers": {
     "peeperfrog-linkedin": {
       "command": "/path/to/peeperfrog-linkedin-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"],
-      "env": {
-        "LINKEDIN_CLIENT_ID": "your_client_id",
-        "LINKEDIN_CLIENT_SECRET": "your_client_secret",
-        "LINKEDIN_ORG_ID": "your_org_id"
-      }
+      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"]
     }
   }
 }
