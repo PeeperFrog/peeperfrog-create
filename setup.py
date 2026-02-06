@@ -145,6 +145,19 @@ def git_pull(install_dir):
             print("  Removing downloaded setup.py (will be replaced by tracked version)...")
             script_path.unlink()
 
+    # Check for local modifications that would block pull
+    modified_files = run_command("git diff --name-only", cwd=install_dir, capture=True)
+    if modified_files:
+        modified_list = [f for f in modified_files.strip().split('\n') if f]
+        if modified_list:
+            print(f"  Local modifications detected in {len(modified_list)} file(s):")
+            for f in modified_list[:5]:  # Show first 5
+                print(f"    • {f}")
+            if len(modified_list) > 5:
+                print(f"    • ... and {len(modified_list) - 5} more")
+            print("  Resetting to match remote (local changes will be lost)...")
+            run_command("git checkout -- .", cwd=install_dir)
+
     # Check for deleted tracked files and restore them
     deleted_files = run_command("git diff --name-only --diff-filter=D", cwd=install_dir, capture=True)
     if deleted_files:
