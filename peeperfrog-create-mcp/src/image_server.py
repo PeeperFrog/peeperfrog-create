@@ -29,6 +29,21 @@ from batch_generate import log_generation, get_cost_from_log
 
 # --- Configuration ---
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
+ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+
+def load_env():
+    """Load .env file if present. Local .env takes precedence over environment."""
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    # Use setdefault so env vars passed by MCP client still work
+                    os.environ.setdefault(key.strip(), value.strip())
+
+# Load .env on import
+load_env()
 
 def load_config():
     """Load configuration from config.json next to this script"""
