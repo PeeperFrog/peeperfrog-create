@@ -286,4 +286,4 @@ See `pricing.json` for full details including per-resolution breakdowns.
 
 ## License
 
-Apache 2.0
+[Apache 2.0](../LICENSE)

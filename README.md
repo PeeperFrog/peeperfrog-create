@@ -5,14 +5,14 @@
 <h1 align="center">PeeperFrog Create</h1>
 
 <p align="center">
-An MCP server and Claude Skills for creative workflows.
+MCP servers and Claude Skills for creative workflows.
 </p>
 
 ---
 
 ## What is PeeperFrog Create?
 
-PeeperFrog Create is an **MCP (Model Context Protocol) server** with a growing set of capabilities, paired with **Claude Skills** that teach Claude how to use them effectively. It plugs directly into Claude Code and other MCP-compatible clients.
+PeeperFrog Create is a collection of **MCP (Model Context Protocol) servers** with a growing set of capabilities, paired with **Claude Skills** that teach Claude how to use them effectively. They plug directly into Claude Code and other MCP-compatible clients.
 
 ### Capabilities
 
@@ -179,4 +179,4 @@ peeperfrog-create/
 
 ## License
 
-Apache 2.0
+[Apache 2.0](LICENSE)

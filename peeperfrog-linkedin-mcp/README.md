@@ -361,3 +361,7 @@ peeperfrog-linkedin-mcp/
 - [LinkedIn Developer Portal](https://developer.linkedin.com/)
 - [Posts API Documentation](https://learn.microsoft.com/en-us/linkedin/marketing/community-management/shares/posts-api)
 - [OAuth 2.0 Guide](https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow)
+
+## License
+
+[Apache 2.0](../LICENSE)
