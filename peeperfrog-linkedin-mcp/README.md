@@ -1,11 +1,11 @@
 <p align="center">
-  <img src="../docs/logo.png" alt="PeeperFrog" width="200">
+  <img src="../docs/logo%20for%20LinkedIn.webp" alt="PeeperFrog" width="200">
 </p>
 
 <h1 align="center">PeeperFrog LinkedIn MCP</h1>
 
 <p align="center">
-An MCP server for posting to LinkedIn personal profiles and Company Pages.
+An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 </p>
 
 ---
