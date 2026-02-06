@@ -48,28 +48,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Configure Credentials
-
-Copy the example files and fill in your credentials:
-
-```bash
-cp config.json.example config.json
-cp .env.example .env
-```
-
-Edit `.env` with your LinkedIn Developer App credentials:
-
-```env
-LINKEDIN_CLIENT_ID=your_client_id
-LINKEDIN_CLIENT_SECRET=your_client_secret
-LINKEDIN_ORG_ID=your_organization_id  # Optional - only needed for Company Page access
-LINKEDIN_REDIRECT_URI=http://localhost:8585/callback
-```
-
-To find your Organization ID (if using Company Page features), go to your Company Page admin URL:
-`https://www.linkedin.com/company/12345678/admin/` → the ID is `12345678`
-
-### 3. Configure LinkedIn Developer Portal
+### 2. Configure LinkedIn Developer Portal
 
 In your LinkedIn Developer App settings:
 
@@ -83,19 +62,7 @@ In your LinkedIn Developer App settings:
    - `w_organization_social` (optional - for Company Page posts)
    - `r_organization_social` (optional - for reading Company Page posts)
 
-### 4. Run OAuth Setup
-
-```bash
-python src/oauth_setup.py
-```
-
-This will:
-1. Open your browser to LinkedIn's authorization page
-2. After you approve, capture the authorization code
-3. Exchange it for access/refresh tokens
-4. Save tokens to `.linkedin_tokens.json`
-
-### 5. Add to your MCP client
+### 3. Add to your MCP client
 
 #### Claude Code
 
@@ -114,11 +81,32 @@ For **Claude Desktop**, use `claude_desktop_config.json` instead:
   "mcpServers": {
     "peeperfrog-linkedin": {
       "command": "/path/to/peeperfrog-linkedin-mcp/venv/bin/python3",
-      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"]
+      "args": ["/path/to/peeperfrog-linkedin-mcp/src/linkedin_server.py"],
+      "env": {
+        "LINKEDIN_CLIENT_ID": "your_client_id",
+        "LINKEDIN_CLIENT_SECRET": "your_client_secret",
+        "LINKEDIN_ORG_ID": "your_org_id"
+      }
     }
   }
 }
 ```
+
+> **Note:** `LINKEDIN_ORG_ID` is optional - only needed for Company Page features. To find your Organization ID, go to your Company Page admin URL: `https://www.linkedin.com/company/12345678/admin/` → the ID is `12345678`
+
+### 4. Run OAuth Setup
+
+```bash
+cd peeperfrog-linkedin-mcp
+source venv/bin/activate
+python src/oauth_setup.py
+```
+
+This will:
+1. Open your browser to LinkedIn's authorization page
+2. After you approve, capture the authorization code
+3. Exchange it for access/refresh tokens
+4. Save tokens to `.linkedin_tokens.json`
 
 ## Available Tools
 
@@ -350,8 +338,7 @@ peeperfrog-linkedin-mcp/
 ├── src/
 │   ├── linkedin_server.py    # Main MCP server
 │   └── oauth_setup.py        # OAuth authentication script
-├── config.json.example       # Configuration template
-├── .env.example              # Environment variables template
+├── .linkedin_tokens.json     # OAuth tokens (created by oauth_setup.py)
 ├── .gitignore
 ├── requirements.txt
 └── README.md
@@ -359,7 +346,8 @@ peeperfrog-linkedin-mcp/
 
 ## Security Notes
 
-- Never commit `.env`, `config.json`, or `.linkedin_tokens.json`
+- Never commit `.linkedin_tokens.json` to version control
+- Credentials are stored in Claude's config file (not in the project directory)
 - Token files are created with restricted permissions (600)
 - The OAuth callback server only runs during initial setup
 - Access tokens are never logged or exposed in tool responses
