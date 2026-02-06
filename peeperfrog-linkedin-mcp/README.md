@@ -95,9 +95,19 @@ This will:
 3. Exchange it for access/refresh tokens
 4. Save tokens to `.linkedin_tokens.json`
 
-### 5. Add to Claude Code
+### 5. Add to your MCP client
 
-Add to your `~/.claude/settings.json`:
+#### Claude Code
+
+Settings file: `~/.claude/settings.json` (all platforms)
+
+For **Claude Desktop**, use `claude_desktop_config.json` instead:
+
+| OS | Path |
+|---|---|
+| **Linux** | `~/.config/Claude/claude_desktop_config.json` |
+| **macOS** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| **Windows** | `%APPDATA%\Claude\claude_desktop_config.json` |
 
 ```json
 {
