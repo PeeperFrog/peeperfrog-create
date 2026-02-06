@@ -931,6 +931,21 @@ def convert_to_webp(quality=85, force=False):
         "error": result.stderr if result.returncode != 0 else None
     }
 
+def _normalize_url(url):
+    """Normalize a URL: lowercase scheme and host, preserve path case, strip trailing slash."""
+    from urllib.parse import urlparse, urlunparse
+    parsed = urlparse(url if "://" in url else f"https://{url}")
+    normalized = urlunparse((
+        parsed.scheme.lower(),
+        parsed.netloc.lower(),
+        parsed.path,
+        parsed.params,
+        parsed.query,
+        parsed.fragment,
+    ))
+    return normalized.rstrip("/")
+
+
 def _get_wordpress_config(wp_url):
     """Look up WordPress config from config.json by URL.
 
@@ -938,8 +953,13 @@ def _get_wordpress_config(wp_url):
         (normalized_url, user, password, alt_text_prefix)
     """
     wp_sites = CFG.get("wordpress", {})
-    normalized_url = wp_url.rstrip("/")
-    site_cfg = wp_sites.get(normalized_url) or wp_sites.get(normalized_url + "/")
+    normalized_url = _normalize_url(wp_url)
+    # Build a case-insensitive lookup: normalize each config key's domain
+    site_cfg = None
+    for cfg_url, cfg_val in wp_sites.items():
+        if _normalize_url(cfg_url) == normalized_url:
+            site_cfg = cfg_val
+            break
     if not site_cfg:
         raise Exception(f"No WordPress credentials found in config.json for '{wp_url}'. Add a 'wordpress' entry with user and password.")
     wp_user = site_cfg.get("user")
@@ -996,7 +1016,7 @@ def _upload_single_to_wordpress(file_path, wp_url):
         }
 
 
-def upload_to_wordpress(wp_url, directory="batch", limit=10):
+def upload_to_wordpress(wp_url, directory="webp", limit=10):
     from pathlib import Path
 
     # Look up credentials from config.json wordpress section
@@ -1033,7 +1053,7 @@ def upload_to_wordpress(wp_url, directory="batch", limit=10):
 
     return {"success": len(failed) == 0, "uploaded": uploaded, "failed": failed, "total": len(uploaded) + len(failed)}
 
-def get_generated_webp_images(directory="batch", limit=10):
+def get_generated_webp_images(directory="webp", limit=10):
     from pathlib import Path
     batch_dir = os.path.join(CFG["images_dir"], directory)
     images = []
@@ -1234,7 +1254,7 @@ def handle_tools_list(request_id):
                     "inputSchema": {
                         "type": "object",
                         "properties": {
-                            "directory": {"type": "string", "description": "Directory to scan (default: batch)", "default": "batch"},
+                            "directory": {"type": "string", "description": "Directory to scan (default: webp)", "default": "webp"},
                             "limit": {"type": "integer", "description": "Maximum number of images to return", "default": 10}
                         },
                         "required": []
@@ -1384,7 +1404,7 @@ def handle_tools_list(request_id):
                         "type": "object",
                         "properties": {
                             "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Must match an entry in config.json wordpress section."},
-                            "directory": {"type": "string", "description": "Directory containing images (default: batch)", "default": "batch"},
+                            "directory": {"type": "string", "description": "Directory containing images (default: webp)", "default": "webp"},
                             "limit": {"type": "integer", "description": "Maximum number of images to upload", "default": 10}
                         },
                         "required": ["wp_url"]
@@ -1485,7 +1505,7 @@ def handle_tool_call(request_id, tool_name, arguments):
         elif tool_name == "convert_to_webp":
             result = convert_to_webp(arguments.get("quality", 85), arguments.get("force", False))
         elif tool_name == "get_generated_webp_images":
-            result = get_generated_webp_images(arguments.get("directory", "batch"), arguments.get("limit", 10))
+            result = get_generated_webp_images(arguments.get("directory", "webp"), arguments.get("limit", 10))
         elif tool_name == "get_media_id_map":
             result = get_media_id_map(
                 arguments.get("directory", "batch"),
@@ -1494,7 +1514,7 @@ def handle_tool_call(request_id, tool_name, arguments):
         elif tool_name == "upload_to_wordpress":
             result = upload_to_wordpress(
                 arguments.get("wp_url"),
-                arguments.get("directory", "batch"),
+                arguments.get("directory", "webp"),
                 arguments.get("limit", 10)
             )
         elif tool_name == "list_wordpress_sites":
