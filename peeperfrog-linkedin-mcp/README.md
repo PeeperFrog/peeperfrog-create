@@ -29,11 +29,13 @@ An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 ## Prerequisites
 
 1. **LinkedIn Developer App** with the following products enabled:
-   - Share on LinkedIn
-   - Sign In with LinkedIn using OpenID Connect
-   - Marketing Developer Platform (for Company Page access)
+   - Share on LinkedIn (required)
+   - Sign In with LinkedIn using OpenID Connect (required)
+   - Marketing Developer Platform (optional - for Company Page access)
 
 2. **Python 3.10+** with pip
+
+> **Note:** Marketing Developer Platform requires LinkedIn approval and is only needed for Company Page features. All personal profile features work without it.
 
 ## Quick Start
 
@@ -60,11 +62,11 @@ Edit `.env` with your LinkedIn Developer App credentials:
 ```env
 LINKEDIN_CLIENT_ID=your_client_id
 LINKEDIN_CLIENT_SECRET=your_client_secret
-LINKEDIN_ORG_ID=your_organization_id
+LINKEDIN_ORG_ID=your_organization_id  # Optional - only needed for Company Page access
 LINKEDIN_REDIRECT_URI=http://localhost:8585/callback
 ```
 
-To find your Organization ID, go to your Company Page admin URL:
+To find your Organization ID (if using Company Page features), go to your Company Page admin URL:
 `https://www.linkedin.com/company/12345678/admin/` → the ID is `12345678`
 
 ### 3. Configure LinkedIn Developer Portal
@@ -74,12 +76,12 @@ In your LinkedIn Developer App settings:
 1. Go to **Auth** tab
 2. Add `http://localhost:8585/callback` to **Authorized redirect URLs**
 3. Under **OAuth 2.0 scopes**, ensure you have:
-   - `openid`
-   - `profile`
-   - `email`
-   - `w_member_social`
-   - `w_organization_social`
-   - `r_organization_social`
+   - `openid` (required)
+   - `profile` (required)
+   - `email` (required)
+   - `w_member_social` (required - for personal posts)
+   - `w_organization_social` (optional - for Company Page posts)
+   - `r_organization_social` (optional - for reading Company Page posts)
 
 ### 4. Run OAuth Setup
 
@@ -175,13 +177,13 @@ Add to your `~/.claude/settings.json`:
 
 Most tools accept a `target` parameter to specify where to post:
 
-| Value | Description |
-|-------|-------------|
-| `"personal"` or `"me"` | Post to your personal LinkedIn profile |
-| `"organization"` or `"org"` | Post to default Company Page (from config) |
-| `"12345678"` | Post to a specific organization by ID |
+| Value | Description | Requires |
+|-------|-------------|----------|
+| `"personal"` or `"me"` | Post to your personal LinkedIn profile | Basic scopes only |
+| `"organization"` or `"org"` | Post to default Company Page (from config) | Marketing Developer Platform |
+| `"12345678"` | Post to a specific organization by ID | Marketing Developer Platform |
 
-If omitted, defaults to `"organization"` (the Company Page configured in `.env`).
+If omitted, defaults to `"organization"`. **For personal-only setups, always specify `target: "personal"`.**
 
 ## Usage Examples
 
@@ -291,11 +293,23 @@ Use the `linkedin_token_status` tool to see:
 
 - **Post length**: Maximum 3000 characters
 - **Rate limits**: LinkedIn doesn't publish exact limits, but typical usage is fine
-- **Company Page access**: Requires Marketing Developer Platform product
+- **Company Page access**: Requires Marketing Developer Platform product (optional)
+- **Personal post analytics**: May require `r_member_postAnalytics` scope
 - **Scheduled posts**: Not supported by LinkedIn API (use drafts as a workaround)
 - **Newsletters**: Not supported via API (manual creation only)
 - **Videos**: Requires separate upload flow (not yet implemented)
 - **Documents/PDFs**: Not yet implemented
+
+## Personal Profile vs Company Page
+
+| Feature | Personal Profile | Company Page |
+|---------|------------------|--------------|
+| Post text/links/images | Yes | Yes (requires Marketing Developer Platform) |
+| Drafts | Yes | Yes (requires Marketing Developer Platform) |
+| Comments | Yes | Yes |
+| Reactions | Yes | Yes |
+| Analytics | Requires `r_member_postAnalytics` | Requires Marketing Developer Platform |
+| Required products | Share on LinkedIn | Marketing Developer Platform |
 
 ## Troubleshooting
 

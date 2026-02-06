@@ -153,12 +153,10 @@ def get_linkedin_headers(access_token: str) -> dict:
         "Content-Type": "application/json",
     }
 
-def get_organization_id() -> str:
-    """Get the default configured organization ID."""
+def get_organization_id() -> str | None:
+    """Get the default configured organization ID, or None if not configured."""
     org_id = os.environ.get("LINKEDIN_ORG_ID") or CFG.get("linkedin", {}).get("organization_id")
-    if not org_id:
-        raise Exception("Missing LINKEDIN_ORG_ID in environment or config.json")
-    return str(org_id)
+    return str(org_id) if org_id else None
 
 def get_person_urn() -> str:
     """Get the authenticated user's person URN from stored tokens."""
@@ -187,7 +185,12 @@ def get_author_urn(target: str = "organization") -> str:
     if target in ("personal", "me"):
         return get_person_urn()
     elif target in ("organization", "org"):
-        return f"urn:li:organization:{get_organization_id()}"
+        org_id = get_organization_id()
+        if not org_id:
+            # Fall back to personal if no org ID configured
+            debug_log("No LINKEDIN_ORG_ID configured, using personal profile")
+            return get_person_urn()
+        return f"urn:li:organization:{org_id}"
     elif target.isdigit():
         # Specific organization ID provided
         return f"urn:li:organization:{target}"
@@ -1044,6 +1047,12 @@ async def get_organization_post_statistics(post_ids: list = None, target: str = 
     # Get the organization URN
     if target in ("organization", "org"):
         org_id = get_organization_id()
+        if not org_id:
+            return {
+                "success": False,
+                "error": "No organization ID configured. Set LINKEDIN_ORG_ID or use linkedin_get_member_post_analytics for personal posts.",
+                "message": "Organization statistics require Marketing Developer Platform and a configured org ID."
+            }
     else:
         org_id = target
 

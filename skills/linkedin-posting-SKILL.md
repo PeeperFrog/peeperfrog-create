@@ -10,7 +10,8 @@ description: Post text and links to LinkedIn personal profiles and Company Pages
 **Use this skill when:** You want to publish content to LinkedIn, manage draft posts, or interact with comments.
 
 **Prerequisites:**
-- LinkedIn Developer App with Marketing Developer Platform enabled
+- LinkedIn Developer App with "Share on LinkedIn" product enabled
+- Marketing Developer Platform (optional - only for Company Page features)
 - OAuth authentication completed via `oauth_setup.py`
 - Valid tokens in `.linkedin_tokens.json`
 
@@ -52,13 +53,13 @@ description: Post text and links to LinkedIn personal profiles and Company Pages
 
 Most tools accept a `target` parameter to control where content is posted:
 
-| Value | Description |
-|-------|-------------|
-| `"personal"` or `"me"` | Your personal LinkedIn profile |
-| `"organization"` or `"org"` | Default Company Page (from config) |
-| `"12345678"` | A specific organization by ID |
+| Value | Description | Requires |
+|-------|-------------|----------|
+| `"personal"` or `"me"` | Your personal LinkedIn profile | Basic scopes only |
+| `"organization"` or `"org"` | Default Company Page (from config) | Marketing Developer Platform |
+| `"12345678"` | A specific organization by ID | Marketing Developer Platform |
 
-Default is `"organization"` if not specified.
+Default is `"organization"` if not specified. **For personal-only setups, always specify `target: "personal"`.**
 
 ---
 
