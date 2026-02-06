@@ -618,11 +618,15 @@ def main():
     # Determine install directory
     install_dir = DEFAULT_INSTALL_DIR
 
-    # Check if running from within the repo
+    # Check if running from within an existing repo installation
     script_dir = Path(__file__).resolve().parent
     if (script_dir / ".git").exists() and (script_dir / "peeperfrog-create-mcp").exists():
         install_dir = script_dir
         print(f"\n📍 Running from existing installation: {install_dir}")
+    elif script_dir != DEFAULT_INSTALL_DIR and not (script_dir / ".git").exists():
+        # Script was curl'd into a custom directory - use that as install location
+        install_dir = script_dir
+        print(f"\n📍 Installing to: {install_dir}")
 
     # Check installation status
     already_installed = is_installed(install_dir)
