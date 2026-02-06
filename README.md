@@ -32,6 +32,34 @@ MCP servers and Claude Skills for creative workflows.
 
 ---
 
+## Like Bluetooth for AI
+
+Think of how Bluetooth connects your phone to your headphones -- you don't manage audio encoding, you just play music.
+
+**PeeperFrog Create works the same way for AI:**
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  AI Assistant   │     │   MCP Server    │     │  External APIs  │
+│  (Claude)       │────▶│   (Local)       │────▶│  (Cloud)        │
+│                 │     │                 │     │                 │
+│  "Generate a    │     │  Handles all    │     │  Gemini, OpenAI │
+│   hero image    │     │  data movement, │     │  LinkedIn, etc. │
+│   and post it   │     │  API calls,     │     │                 │
+│   to LinkedIn"  │     │  credentials    │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+     Conceptual              Technical              Secure APIs
+```
+
+- **The AI stays conceptual** -- it describes what it wants ("generate an image," "post to LinkedIn") without handling raw data
+- **The MCP runs locally** -- all API keys and secrets stay on your machine, never exposed to the AI
+- **Skills teach in plain language** -- they tell the AI how to use available tools, turning it into an agent with extended capabilities
+- **Secure APIs handle the rest** -- proven, secure connections to external services
+
+The result: your AI assistant orchestrates complex creative workflows while the technical details stay safely abstracted away.
+
+---
+
 ## What is PeeperFrog Create?
 
 PeeperFrog Create is a collection of **MCP (Model Context Protocol) servers** with a growing set of capabilities, paired with **Claude Skills** that teach Claude how to use them effectively. They plug directly into Claude Code and other MCP-compatible clients.
