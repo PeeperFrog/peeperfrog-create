@@ -268,31 +268,22 @@ def check_api_key_readiness(server_id):
     if not env_vars:
         return True
 
-    print(f"\n{'=' * 60}")
-    print(f"📋 Prerequisites for {server_config['name']}")
-    print("=" * 60)
-    print(f"\n  {server_config.get('prereq_note', '')}")
-    print("\n  This server uses the following API keys/credentials:\n")
-
-    for var in env_vars:
-        info = API_KEY_INFO.get(var, {})
-        required_str = "REQUIRED" if info.get("required", False) else "optional"
-        print(f"    • {info.get('name', var)} ({required_str})")
+    # Simple question based on server type
+    if server_id == "peeperfrog-create-mcp":
+        question = "Do you have any image generation API keys (Gemini, OpenAI, or Together)?"
+    elif server_id == "peeperfrog-linkedin-mcp":
+        question = "Do you have LinkedIn Developer App credentials?"
+    else:
+        question = "Do you have the required API keys ready?"
 
     print()
-    has_keys = prompt_yes_no("Do you have the required API keys/credentials ready?", default=False)
+    has_keys = prompt_yes_no(question, default=True)
 
     if not has_keys:
         print_api_key_instructions(env_vars)
         print("\n" + "-" * 60)
-        print("You can still proceed with installation. The MCP server will be")
-        print("set up, but you'll need to add your API keys to the MCP settings")
-        print("file before using it.")
+        print("You can still proceed. Add your keys to the config file later.")
         print("-" * 60)
-
-        proceed = prompt_yes_no("\nProceed with installation anyway?", default=True)
-        if not proceed:
-            return False
 
     return True
 
@@ -318,7 +309,7 @@ def generate_mcp_config(install_dir, selected_servers, collected_keys=None):
         else:
             config_name = server_id.replace("-mcp", "")
 
-        # Build env vars with helpful placeholders
+        # Build env vars - use empty string for optional keys without values
         env_dict = {}
         for var in server_config.get("env_vars", []):
             info = API_KEY_INFO.get(var, {})
@@ -327,8 +318,8 @@ def generate_mcp_config(install_dir, selected_servers, collected_keys=None):
             elif info.get("required", False):
                 env_dict[var] = f"YOUR_{var}_HERE"
             else:
-                # For optional keys, use a descriptive placeholder
-                env_dict[var] = f"OPTIONAL_{var}_OR_REMOVE_THIS_LINE"
+                # Empty string for optional keys - safe default
+                env_dict[var] = ""
 
         config["mcpServers"][config_name] = {
             "command": str(venv_python),
@@ -591,6 +582,45 @@ def install_skills(install_dir):
         count += 1
 
     return count
+
+
+def run_linkedin_oauth_setup(install_dir):
+    """Run the LinkedIn OAuth setup script interactively."""
+    linkedin_dir = install_dir / "peeperfrog-linkedin-mcp"
+    oauth_script = linkedin_dir / "src" / "oauth_setup.py"
+    venv_python = linkedin_dir / "venv" / "bin" / "python3"
+
+    if not oauth_script.exists():
+        print("  OAuth setup script not found")
+        return False
+
+    if not venv_python.exists():
+        print("  Virtual environment not found")
+        return False
+
+    print("\n" + "=" * 60)
+    print("🔗 LinkedIn OAuth Setup")
+    print("=" * 60)
+    print("\nThis will open a browser for LinkedIn authorization.")
+    print("Make sure your LinkedIn app's redirect URI is set to:")
+    print("  http://localhost:8000/callback")
+    print()
+
+    if not prompt_yes_no("Run OAuth setup now?", default=True):
+        print("\n  You can run it later with:")
+        print(f"    cd {linkedin_dir}")
+        print("    source venv/bin/activate")
+        print("    python src/oauth_setup.py")
+        return False
+
+    print("\nStarting OAuth setup...")
+    try:
+        # Run the OAuth setup script interactively
+        subprocess.run([str(venv_python), str(oauth_script)], cwd=str(linkedin_dir))
+        return True
+    except Exception as e:
+        print(f"  Error running OAuth setup: {e}")
+        return False
 
 
 def print_claude_desktop_skills_instructions(install_dir, is_update=False):
@@ -1037,17 +1067,11 @@ def main():
         print("📋 Next Steps")
         print("=" * 60)
 
-        step = 1
-
-        # LinkedIn-specific instructions
+        # LinkedIn OAuth setup
         if "peeperfrog-linkedin-mcp" in servers_to_setup:
-            print(f"\n{step}. For LinkedIn MCP, complete the OAuth setup:")
-            print(f"     cd {install_dir / 'peeperfrog-linkedin-mcp'}")
-            print("     source venv/bin/activate")
-            print("     python src/oauth_setup.py")
-            step += 1
+            run_linkedin_oauth_setup(install_dir)
 
-        print(f"\n{step}. Restart to load the new MCP servers:")
+        print("\n1. Restart to load the new MCP servers:")
         print("\n   Claude Code (CLI):")
         print("     Just run: claude")
 
