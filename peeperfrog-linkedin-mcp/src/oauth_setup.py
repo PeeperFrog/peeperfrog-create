@@ -40,12 +40,16 @@ TOKEN_URL = "https://www.linkedin.com/oauth/v2/accessToken"
 # Default redirect URI - must match what's configured in LinkedIn Developer Portal
 DEFAULT_REDIRECT_URI = "http://localhost:8585/callback"
 
-# Required scopes for Company Page posting
-REQUIRED_SCOPES = [
+# Scopes for personal profile (always available with "Share on LinkedIn" product)
+PERSONAL_SCOPES = [
     "openid",
     "profile",
     "email",
     "w_member_social",
+]
+
+# Additional scopes for Company Page (requires Marketing Developer Platform)
+ORGANIZATION_SCOPES = [
     "w_organization_social",
     "r_organization_social",
 ]
@@ -143,14 +147,14 @@ def start_callback_server(port: int = 8585) -> HTTPServer:
 # OAuth Flow
 # ---------------------------------------------------------------------------
 
-def get_authorization_url(client_id: str, redirect_uri: str, state: str = "linkedin_oauth") -> str:
+def get_authorization_url(client_id: str, redirect_uri: str, scopes: list, state: str = "linkedin_oauth") -> str:
     """Build the LinkedIn authorization URL."""
     params = {
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": redirect_uri,
         "state": state,
-        "scope": " ".join(REQUIRED_SCOPES),
+        "scope": " ".join(scopes),
     }
     return f"{AUTH_URL}?{urllib.parse.urlencode(params)}"
 
@@ -232,7 +236,25 @@ def main():
 
     print(f"Client ID: {client_id[:8]}...{client_id[-4:]}")
     print(f"Redirect URI: {redirect_uri}")
-    print(f"Scopes: {', '.join(REQUIRED_SCOPES)}")
+    print()
+
+    # Ask whether to include organization scopes
+    print("Do you have Marketing Developer Platform access for Company Pages?")
+    print("  [y] Yes - include organization scopes (for Company Page posting)")
+    print("  [n] No  - personal profile only (default)")
+    print()
+    include_org = input("Include organization scopes? [y/N]: ").strip().lower()
+
+    if include_org == 'y':
+        scopes = PERSONAL_SCOPES + ORGANIZATION_SCOPES
+        print()
+        print("Including organization scopes for Company Page access.")
+    else:
+        scopes = PERSONAL_SCOPES
+        print()
+        print("Using personal profile scopes only.")
+
+    print(f"Scopes: {', '.join(scopes)}")
     print()
 
     # Check if redirect URI matches expected format
@@ -251,7 +273,7 @@ def main():
         sys.exit(1)
 
     # Build and open authorization URL
-    auth_url = get_authorization_url(client_id, redirect_uri)
+    auth_url = get_authorization_url(client_id, redirect_uri, scopes)
     print()
     print("Opening browser for LinkedIn authorization...")
     print()
