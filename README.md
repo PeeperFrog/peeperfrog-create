@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="docs/logo.png" alt="PeeperFrog Create" width="200">
+  <img src="docs/logo for PF Create.png" alt="PeeperFrog Create" width="200">
 </p>
 
 <h1 align="center">PeeperFrog Create</h1>
 
-<p align="center">
-MCP servers and Claude Skills for creative workflows.
+<h2 align="center">
+Like Bluetooth for AI
 </p>
 
 <p align="center">
-<strong>Version 1.0 Beta</strong> | Designed for Creators
+<strong>Version 1.0 Beta</strong> | MCP servers and Claude Skills for creative workflows | Designed for Creators
 </p>
 
 ---
@@ -18,7 +18,7 @@ MCP servers and Claude Skills for creative workflows.
 >
 > Open source under the [Apache 2.0 License](LICENSE)
 >
-> **Not affiliated with Anthropic, Claude, LinkedIn, Google, Gemini, OpenAI, or any other third-party service.** All product names, trademarks, and registered trademarks are the property of their respective owners. This project simply provides integrations to connect these services together.
+> **Not affiliated with Anthropic, Claude, LinkedIn, Microsoft, Google, Gemini, OpenAI, ChatGPT, Automattic, WordPress, or any other third-party service.** All product names, trademarks, and registered trademarks are the property of their respective owners. This project simply provides integrations to connect these services.[Full Disclaimer](DISCLAIMER.md)
 
 ---
 
