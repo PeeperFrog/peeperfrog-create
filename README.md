@@ -139,13 +139,7 @@ The script will:
 **To update an existing installation:**
 
 ```bash
-~/peeperfrog-create/update-pfc.sh
-```
-
-Or with the full command:
-
-```bash
-cd ~/peeperfrog-create && python3 setup.py
+update-pfc
 ```
 
 The script detects the existing installation and pulls updates. If dependencies changed, it reinstalls them automatically.
@@ -153,7 +147,7 @@ The script detects the existing installation and pulls updates. If dependencies 
 **To update and restart Claude Code:**
 
 ```bash
-~/peeperfrog-create/update-pfc.sh --restart
+update-pfc --restart
 ```
 
 ### Manual Setup
@@ -341,7 +335,7 @@ cp -r skills/* /path/to/your/project/.claude/skills/
 ```
 peeperfrog-create/
 ├── setup.py                   # Smart installer (install + update)
-├── update-pfc.sh              # Quick update script (runs setup.py)
+├── update-pfc.sh              # Quick update script (symlinked to PATH by setup.py)
 ├── peeperfrog-create-mcp/     # Image generation MCP server
 │   ├── src/                     # Server code
 │   ├── scripts/                 # Utility scripts (WebP conversion)

@@ -1141,6 +1141,31 @@ def offer_config_setup(install_dir, selected_servers, collected_keys=None):
     print("-" * 60)
 
 
+def install_update_command(install_dir):
+    """Create symlink so 'update-pfc' works from anywhere."""
+    local_bin = Path.home() / ".local" / "bin"
+    symlink_path = local_bin / "update-pfc"
+    target = install_dir / "update-pfc.sh"
+
+    if not target.exists():
+        return
+
+    try:
+        local_bin.mkdir(parents=True, exist_ok=True)
+
+        if symlink_path.is_symlink() or symlink_path.exists():
+            if symlink_path.is_symlink() and symlink_path.resolve() == target.resolve():
+                return  # Already correct
+            symlink_path.unlink()
+
+        symlink_path.symlink_to(target)
+        print(f"\n🔗 Installed 'update-pfc' command → {target}")
+        print("   You can now run 'update-pfc' from anywhere.")
+    except Exception as e:
+        print(f"\n⚠️  Could not create update-pfc symlink: {e}")
+        print(f"   You can still run: {target}")
+
+
 def install_skills(install_dir):
     """Copy skills to Claude Code skills directory."""
     skills_src = install_dir / "skills"
@@ -1592,6 +1617,9 @@ def main():
 
         print("\n✅ Update complete!")
 
+        # Ensure update-pfc command is on PATH
+        install_update_command(install_dir)
+
         # Check if servers are missing from Claude Desktop config
         if not update_only:
             desktop_config_path = get_claude_desktop_config_path()
@@ -1718,6 +1746,9 @@ def main():
 
         print("\n✅ Installation complete!")
 
+        # Install update-pfc command to PATH
+        install_update_command(install_dir)
+
         # Show next steps with OS-specific instructions
         os_type = get_os_type()
         print("\n" + "=" * 60)
@@ -1739,6 +1770,9 @@ def main():
             print("     Right-click system tray > Exit, then relaunch")
         else:
             print("     Quit completely from system tray, then relaunch")
+
+        print("\n2. To update later, run from anywhere:")
+        print("     update-pfc")
 
         print()
         print("=" * 60)
