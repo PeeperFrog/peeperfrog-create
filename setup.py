@@ -378,6 +378,193 @@ def is_claude_code_installed():
     return result is not None and len(result.strip()) > 0
 
 
+def get_os_type():
+    """Detect the operating system."""
+    system = platform.system().lower()
+    if system == "darwin":
+        return "macos"
+    elif system == "windows":
+        return "windows"
+    else:
+        return "linux"
+
+
+def get_claude_desktop_config_path():
+    """Get the Claude Desktop config file path based on OS."""
+    os_type = get_os_type()
+    if os_type == "macos":
+        return Path.home() / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    elif os_type == "windows":
+        appdata = os.environ.get("APPDATA", "")
+        if appdata:
+            return Path(appdata) / "Claude" / "claude_desktop_config.json"
+        return None
+    else:  # linux
+        return Path.home() / ".config" / "Claude" / "claude_desktop_config.json"
+
+
+def get_claude_code_config_path():
+    """Get the Claude Code settings file path."""
+    return Path.home() / ".claude" / "settings.json"
+
+
+def read_config_file(config_path):
+    """Read and parse a JSON config file."""
+    if not config_path or not config_path.exists():
+        return None
+    try:
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return None
+
+
+def write_config_file(config_path, config):
+    """Write config to JSON file, creating parent directories if needed."""
+    try:
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+        return True
+    except IOError:
+        return False
+
+
+def prompt_api_key(key_name):
+    """Prompt user for an API key with info about where to get it."""
+    info = API_KEY_INFO.get(key_name, {})
+    required = info.get("required", False)
+
+    print(f"\n  {info.get('name', key_name)}:")
+    print(f"    {info.get('description', '')}")
+    print(f"    Get it here: {info.get('url', 'N/A')}")
+    print(f"    {info.get('instructions', '')}")
+
+    if required:
+        prompt = f"  Enter {key_name}: "
+    else:
+        prompt = f"  Enter {key_name} (or press Enter to skip): "
+
+    try:
+        value = input(prompt).strip()
+        return value if value else None
+    except EOFError:
+        return None
+
+
+def collect_api_keys(server_id):
+    """Collect API keys for a specific server."""
+    server_config = MCP_SERVERS.get(server_id, {})
+    env_vars = server_config.get("env_vars", [])
+    collected = {}
+
+    if not env_vars:
+        return collected
+
+    print(f"\n  Configure API keys for {server_config.get('name', server_id)}:")
+
+    for var in env_vars:
+        value = prompt_api_key(var)
+        if value:
+            collected[var] = value
+
+    return collected
+
+
+def add_servers_to_config(config_path, mcp_config, config_type="desktop"):
+    """Add MCP server configs to an existing config file."""
+    existing = read_config_file(config_path)
+
+    if existing is None:
+        # Create new config
+        if config_type == "desktop":
+            existing = {"mcpServers": {}}
+        else:
+            existing = {}
+
+    # Ensure mcpServers exists
+    if "mcpServers" not in existing:
+        existing["mcpServers"] = {}
+
+    # Merge in new servers
+    for server_name, server_config in mcp_config.get("mcpServers", {}).items():
+        existing["mcpServers"][server_name] = server_config
+
+    return write_config_file(config_path, existing)
+
+
+def offer_config_setup(install_dir, selected_servers, collected_keys=None):
+    """Offer to automatically add servers to config files."""
+    if collected_keys is None:
+        collected_keys = {}
+
+    print("\n" + "=" * 60)
+    print("📝 Configure MCP Servers")
+    print("=" * 60)
+
+    # Check for Claude Desktop config
+    desktop_path = get_claude_desktop_config_path()
+    code_path = get_claude_code_config_path()
+
+    # Ask about API keys first
+    if prompt_yes_no("\nWould you like to enter your API keys now?"):
+        for server_id in selected_servers:
+            keys = collect_api_keys(server_id)
+            collected_keys.update(keys)
+    else:
+        print("\n  You can add API keys later by editing the config file.")
+
+    # Generate config with collected keys
+    mcp_config = generate_mcp_config(install_dir, selected_servers, collected_keys)
+
+    # Offer to add to Claude Desktop config
+    if desktop_path:
+        desktop_exists = desktop_path.exists()
+        if desktop_exists:
+            action = "Update"
+            print(f"\n  Found Claude Desktop config: {desktop_path}")
+        else:
+            action = "Create"
+            print(f"\n  Claude Desktop config will be created at: {desktop_path}")
+
+        if prompt_yes_no(f"  {action} Claude Desktop config with these servers?"):
+            if add_servers_to_config(desktop_path, mcp_config, "desktop"):
+                print(f"  ✅ Claude Desktop config {'updated' if desktop_exists else 'created'}!")
+            else:
+                print(f"  ❌ Failed to write config file")
+        else:
+            print("\n  Manual setup required. Add this to your config file:")
+            print_mcp_config(mcp_config, selected_servers)
+            return
+
+    # Show success message
+    print("\n" + "-" * 60)
+    print("  Servers added to config:")
+    for server_id in selected_servers:
+        config_name = server_id.replace("-mcp", "").replace("peeperfrog-", "peeperfrog-")
+        if server_id == "peeperfrog-create-mcp":
+            config_name = "peeperfrog-create"
+        elif server_id == "peeperfrog-linkedin-mcp":
+            config_name = "peeperfrog-linkedin"
+        print(f"    • {config_name}")
+
+    # Show any keys that still need to be added
+    missing_keys = []
+    for server_id in selected_servers:
+        server_config = MCP_SERVERS.get(server_id, {})
+        for var in server_config.get("env_vars", []):
+            if var not in collected_keys or not collected_keys[var]:
+                info = API_KEY_INFO.get(var, {})
+                if info.get("required", False):
+                    missing_keys.append((var, info))
+
+    if missing_keys:
+        print("\n  ⚠️  Required keys still need to be added:")
+        for var, info in missing_keys:
+            print(f"    • {var}: {info.get('url', '')}")
+    print("-" * 60)
+
+
 def install_skills(install_dir):
     """Copy skills to Claude Code skills directory."""
     skills_src = install_dir / "skills"
@@ -404,17 +591,6 @@ def install_skills(install_dir):
         count += 1
 
     return count
-
-
-def get_os_type():
-    """Detect the operating system."""
-    system = platform.system().lower()
-    if system == "darwin":
-        return "macos"
-    elif system == "windows":
-        return "windows"
-    else:
-        return "linux"
 
 
 def print_claude_desktop_skills_instructions(install_dir, is_update=False):
@@ -839,15 +1015,19 @@ def main():
 
             print(f"  ✅ {server_config['name']} ready!")
 
-        # Install skills
-        if not update_only and prompt_yes_no("\nInstall Claude Code Skills?"):
-            skills_installed = install_skills(install_dir)
-            skills_updated = True
-            print_claude_desktop_skills_instructions(install_dir, is_update=False)
+        # Offer to configure MCP servers in config file
+        if not update_only:
+            offer_config_setup(install_dir, servers_to_setup)
 
-        # Generate and display MCP config
-        mcp_config = generate_mcp_config(install_dir, servers_to_setup)
-        print_mcp_config(mcp_config, servers_to_setup)
+        # Install skills
+        if not update_only:
+            if is_claude_code_installed():
+                if prompt_yes_no("\nInstall Claude Code Skills?"):
+                    skills_installed = install_skills(install_dir)
+                    skills_updated = True
+                    print_claude_desktop_skills_instructions(install_dir, is_update=False)
+                    # Pause so user can read the info
+                    input("\nPress Enter to continue...")
 
         print("\n✅ Installation complete!")
 
@@ -856,18 +1036,18 @@ def main():
         print("\n" + "=" * 60)
         print("📋 Next Steps")
         print("=" * 60)
-        print("\n1. Add the MCP configuration above to your settings file")
-        print("2. Replace the placeholder values with your actual API keys")
-        print("   (Remove lines for providers you don't need)")
+
+        step = 1
 
         # LinkedIn-specific instructions
         if "peeperfrog-linkedin-mcp" in servers_to_setup:
-            print("\n3. For LinkedIn MCP, complete the OAuth setup:")
+            print(f"\n{step}. For LinkedIn MCP, complete the OAuth setup:")
             print(f"     cd {install_dir / 'peeperfrog-linkedin-mcp'}")
             print("     source venv/bin/activate")
             print("     python src/oauth_setup.py")
+            step += 1
 
-        print("\n4. Restart to load the new MCP servers:")
+        print(f"\n{step}. Restart to load the new MCP servers:")
         print("\n   Claude Code (CLI):")
         print("     Just run: claude")
 
