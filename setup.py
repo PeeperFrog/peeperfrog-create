@@ -618,6 +618,33 @@ def main():
     if already_installed:
         print(f"\n✅ Existing installation detected at: {install_dir}")
 
+        # Check if venvs exist, recreate if missing
+        venvs_missing = []
+        for server_id, config in MCP_SERVERS.items():
+            mcp_dir = install_dir / server_id
+            venv_dir = mcp_dir / "venv"
+            if mcp_dir.exists() and not venv_dir.exists():
+                venvs_missing.append(server_id)
+
+        if venvs_missing:
+            print("\n⚠️  Virtual environments missing. Recreating...")
+            for server_id in venvs_missing:
+                server_config = MCP_SERVERS[server_id]
+                mcp_dir = install_dir / server_id
+                print(f"\n🔧 Setting up {server_config['name']}...")
+
+                if not setup_venv(mcp_dir):
+                    print(f"  Failed to create virtual environment")
+                    continue
+
+                if not install_dependencies(mcp_dir, server_config):
+                    print(f"  Failed to install dependencies")
+                    continue
+
+                setup_config(mcp_dir, server_config)
+                print(f"  ✅ {server_config['name']} ready!")
+                mcp_updated = True
+
         # Store hashes of files before pull to detect changes
         req_hashes_before = {}
         for server_id, config in MCP_SERVERS.items():
