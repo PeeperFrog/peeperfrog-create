@@ -28,18 +28,32 @@ An MCP server for connecting to LinkedIn personal profiles and Company Pages.
 
 ## Prerequisites
 
-1. **LinkedIn Developer App** with the following products enabled:
-   - Share on LinkedIn (required)
-   - Sign In with LinkedIn using OpenID Connect (required)
-   - Marketing Developer Platform (optional - for Company Page access)
-
+1. **LinkedIn Developer App** - Create one at [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps/new)
 2. **Python 3.10+** with pip
-
-> **Note:** Marketing Developer Platform requires LinkedIn approval and is only needed for Company Page features. All personal profile features work without it.
 
 ## Quick Start
 
-### 1. Clone and Setup
+### 1. Create LinkedIn Developer App
+
+1. Go to [LinkedIn Developer Portal](https://www.linkedin.com/developers/apps/new)
+2. Create a new app (you'll need a Company Page to associate it with)
+3. Once created, go to the **Products** tab and request access to:
+   - **Share on LinkedIn** (required)
+   - **Sign In with LinkedIn using OpenID Connect** (required)
+   - **Marketing Developer Platform** (optional - for Company Page features)
+4. Go to the **Auth** tab to find your **Client ID** and **Client Secret**
+5. Add `http://localhost:8585/callback` to **Authorized redirect URLs**
+6. Under **OAuth 2.0 scopes**, ensure you have:
+   - `openid` (required)
+   - `profile` (required)
+   - `email` (required)
+   - `w_member_social` (required - for personal posts)
+   - `w_organization_social` (optional - for Company Page posts)
+   - `r_organization_social` (optional - for reading Company Page posts)
+
+> **Note:** Marketing Developer Platform requires LinkedIn approval and is only needed for Company Page features. All personal profile features work without it.
+
+### 2. Clone and Setup
 
 ```bash
 cd peeperfrog-linkedin-mcp
@@ -47,20 +61,6 @@ python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
-
-### 2. Configure LinkedIn Developer Portal
-
-In your LinkedIn Developer App settings:
-
-1. Go to **Auth** tab
-2. Add `http://localhost:8585/callback` to **Authorized redirect URLs**
-3. Under **OAuth 2.0 scopes**, ensure you have:
-   - `openid` (required)
-   - `profile` (required)
-   - `email` (required)
-   - `w_member_social` (required - for personal posts)
-   - `w_organization_social` (optional - for Company Page posts)
-   - `r_organization_social` (optional - for reading Company Page posts)
 
 ### 3. Add to your MCP client
 
