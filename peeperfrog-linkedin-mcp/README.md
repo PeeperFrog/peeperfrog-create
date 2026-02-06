@@ -278,6 +278,8 @@ LinkedIn access tokens expire every **60 days**. The server automatically:
 2. Refreshes tokens automatically if they're within **7 days** of expiring
 3. Saves refreshed tokens to `.linkedin_tokens.json`
 
+> **Important:** Auto-refresh only happens when you use the tool. If you don't use the LinkedIn MCP for more than 60 days, the token will expire and you'll need to re-run `oauth_setup.py` to re-authenticate.
+
 If automatic refresh fails, re-run `oauth_setup.py` to re-authenticate.
 
 ### Check Token Status
