@@ -16,10 +16,24 @@ def load_config():
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
     config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
-    cfg["images_dir"] = os.path.expanduser(cfg["images_dir"])
-    if not os.path.isabs(cfg["images_dir"]):
-        cfg["images_dir"] = os.path.join(config_dir, cfg["images_dir"])
-    cfg["queue_file"] = os.path.join(cfg["images_dir"], cfg.get("queue_filename", "batch_queue.json"))
+
+    # Handle both new and old config keys
+    for key in ("images_dir", "generated_images_path"):
+        if key in cfg:
+            cfg[key] = os.path.expanduser(cfg[key])
+            if not os.path.isabs(cfg[key]):
+                cfg[key] = os.path.join(config_dir, cfg[key])
+
+    # Backwards compatibility
+    if "generated_images_path" not in cfg and "images_dir" in cfg:
+        cfg["generated_images_path"] = cfg["images_dir"]
+
+    # Queue file now goes in metadata/ directory
+    base_path = cfg.get("generated_images_path", cfg.get("images_dir"))
+    metadata_dir = os.path.join(base_path, "metadata")
+    os.makedirs(metadata_dir, exist_ok=True)
+    cfg["queue_file"] = os.path.join(metadata_dir, "batch_queue.json")
+
     return cfg
 
 CFG = load_config()
@@ -31,7 +45,7 @@ def ensure_queue_exists():
         with open(QUEUE_FILE, 'w') as f:
             json.dump({"prompts": []}, f)
 
-def add_to_queue(prompt, filename=None, aspect_ratio="16:9", image_size="large", description="", reference_images=None, quality="pro", provider="gemini", gemini_opts=None, model=None):
+def add_to_queue(prompt, filename=None, aspect_ratio="16:9", image_size="large", description="", reference_images=None, quality="pro", provider="gemini", gemini_opts=None, model=None, title="", alternative_text="", caption=""):
     """Add an image request to the batch queue
 
     Args:
@@ -39,11 +53,15 @@ def add_to_queue(prompt, filename=None, aspect_ratio="16:9", image_size="large",
         filename: Output filename (auto-generated if None)
         aspect_ratio: Aspect ratio (1:1, 16:9, etc.)
         image_size: Resolution - "small" (1K), "medium" (2K), "large" (2K), "xlarge" (4K)
-        description: Optional description/note
+        description: Image description for metadata
         reference_images: Optional list of file paths to reference images (max 14, pro only)
         quality: Quality tier - "pro" or "fast"
         provider: Image generation provider - "gemini", "openai", or "together"
         gemini_opts: Optional dict with Gemini-specific options (search_grounding, thinking_level, media_resolution)
+        model: Specific model to use (optional)
+        title: Image title (required for metadata)
+        alternative_text: Alt text for accessibility (required for metadata)
+        caption: Image caption (required for metadata)
     """
     ensure_queue_exists()
 
@@ -54,6 +72,16 @@ def add_to_queue(prompt, filename=None, aspect_ratio="16:9", image_size="large",
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"batch_image_{timestamp}.png"
 
+    # Auto-generate metadata fields if not provided
+    if not title:
+        title = filename.replace('.png', '').replace('_', ' ').title()
+    if not description:
+        description = prompt[:200]
+    if not alternative_text:
+        alternative_text = f"AI-generated image: {prompt[:100]}"
+    if not caption:
+        caption = title
+
     entry = {
         "prompt": prompt,
         "filename": filename,
@@ -62,6 +90,9 @@ def add_to_queue(prompt, filename=None, aspect_ratio="16:9", image_size="large",
         "quality": quality,
         "provider": provider,
         "description": description,
+        "title": title,
+        "alternative_text": alternative_text,
+        "caption": caption,
         "added_at": datetime.now().isoformat()
     }
     if reference_images:

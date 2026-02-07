@@ -34,6 +34,8 @@ Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single
 
 ## Features
 
+- **Priority-based generation** 🆕 -- `priority="high"` for immediate results or `priority="low"` for 50% cost savings via Gemini Batch API (24hr turnaround)
+- **Metadata system** 🆕 -- JSON sidecar files for every image with complete metadata (title, description, alt text, caption, generation params)
 - **Auto mode** -- automatically selects the best model based on cost tier, style, and constraints
 - **Multi-provider** -- switch between Gemini, OpenAI, and Together AI per image
 - **Two quality tiers** -- Pro (best quality) and Fast (cheaper/quicker) for each provider
@@ -45,25 +47,27 @@ Supports Google Gemini, OpenAI (gpt-image-1), and Together AI (FLUX) with single
 - **Cost estimation** -- estimated USD cost returned with every generation
 - **Auto WebP conversion** -- images are automatically converted to WebP after generation (configurable quality, output directory via `config.json`)
 - **Bulk WebP conversion** -- convert older PNG/JPG to WebP for web optimization
-- **WordPress upload** -- upload WebP images directly to WordPress media library
+- **WordPress upload** -- upload WebP images directly to WordPress media library with automatic metadata synchronization 🆕
 - **Configurable** -- all paths, limits, and delays via `config.json`; pricing via `pricing.json`
 
 ## Tools Provided
 
 | Tool | Description |
 |------|-------------|
-| `generate_image` | Generate a single image (auto WebP conversion + optional WordPress upload) |
+| `generate_image` | Generate a single image with priority="high" (immediate) or priority="low" (50% discount, 24hr wait) |
+| `check_batch_status` 🆕 | Check status of async batch job (for priority="low" generations) |
+| `retrieve_batch_results` 🆕 | Retrieve and save completed batch results |
 | `add_to_batch` | Queue an image for batch generation |
 | `remove_from_batch` | Remove from queue by index or filename |
 | `view_batch_queue` | View queued images |
 | `run_batch` | Generate all queued images (auto WebP conversion + optional WordPress upload) |
 | `estimate_image_cost` | Get a cost estimate without generating anything |
-| `get_generation_cost` | Query cost from generation log by filename or date range |
+| `get_generation_cost` | Query cost from generation logs (searches month/year stamped CSVs) |
 | `convert_to_webp` | Bulk convert images to WebP (for older images or when auto conversion is disabled) |
-| `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
+| `upload_to_wordpress` | Upload WebP images to WordPress with automatic metadata sync |
 | `list_wordpress_sites` | List configured WordPress sites (URLs only, credentials stay secure) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
-| `get_media_id_map` | Get filename → WordPress media ID mapping without image data |
+| `get_media_id_map` | Get complete image metadata from JSON sidecar files (includes WordPress info if uploaded) |
 
 ## Quick Start
 
@@ -183,7 +187,9 @@ peeperfrog-create-mcp/
 ├── src/
 │   ├── image_server.py            # Main MCP server
 │   ├── batch_manager.py           # Batch queue management
-│   └── batch_generate.py          # Batch image generation
+│   ├── batch_generate.py          # Batch image generation
+│   ├── metadata.py                # 🆕 Metadata management
+│   └── gemini_batch.py            # 🆕 Gemini Batch API integration
 ├── scripts/
 │   └── webp-convert.py            # PNG/JPG to WebP converter
 ├── docs/
@@ -193,6 +199,72 @@ peeperfrog-create-mcp/
 ├── .env.example
 ├── .gitignore
 ├── LICENSE
+
+## Generated Images Directory Structure 🆕
+
+By default: `~/Pictures/ai-generated-images/`
+
+```
+ai-generated-images/
+├── original/           # All generated PNG images
+├── webp/              # All WebP conversions
+└── metadata/          # All metadata and logs
+    ├── json/          # JSON sidecar files (one per image)
+    │   ├── image1.png.json
+    │   ├── image2.png.json
+    │   └── ...
+    ├── batch_queue.json
+    └── generation_log_february_2026.csv  # Month/year stamped logs
+
+## Cost Savings with Priority-Based Generation 🆕
+
+### Priority="high" (Immediate, Full Price)
+- **Cost**: $0.039 per image (Gemini Pro example)
+- **Speed**: 15-90 seconds
+- **Use when**: Interactive workflows, immediate results needed
+
+### Priority="low" (Batch API, 50% Discount)
+- **Cost**: $0.0195 per image (Gemini Pro example) - **50% savings!**
+- **Speed**: Up to 24 hours
+- **Use when**: Bulk generation, scheduled content, cost optimization
+
+### Real-World Savings
+
+| Monthly Volume | High Priority Cost | Low Priority Cost | **Savings** |
+|----------------|-------------------|-------------------|-------------|
+| 50 images | $1.95 | $0.98 | **$0.97/month** |
+| 100 images | $3.90 | $1.95 | **$1.95/month** |
+| 500 images | $19.50 | $9.75 | **$9.75/month** |
+| 1000 images | $39.00 | $19.50 | **$19.50/month** |
+
+**Annual savings at 500 images/month: $117!**
+
+### Usage Example
+
+```javascript
+// Immediate generation (default)
+peeperfrog-create:generate_image({
+  prompt: "A sunset",
+  priority: "high"  // Full price, immediate
+})
+
+// Batch API (50% discount)
+const result = await peeperfrog-create:generate_image({
+  prompt: "A sunset",
+  priority: "low",  // 50% discount!
+  provider: "gemini"
+})
+// Returns: {batch_job_id: "...", estimated_completion: "24 hours"}
+
+// Check status later
+await peeperfrog-create:check_batch_status({
+  batch_job_id: result.batch_job_id
+})
+
+// Retrieve when complete
+await peeperfrog-create:retrieve_batch_results({
+  batch_job_id: result.batch_job_id
+})
 └── README.md
 ```
 

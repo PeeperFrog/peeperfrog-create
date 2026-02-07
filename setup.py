@@ -946,6 +946,67 @@ def add_servers_to_config(config_path, mcp_config, config_type="desktop"):
     return write_config_file(config_path, existing)
 
 
+def setup_image_generation_path(config_path):
+    """Prompt for and validate generated images path, create directory structure."""
+    print("\n" + "=" * 60)
+    print("📁 Image Generation Directory Setup")
+    print("=" * 60)
+    print("\n  Where should generated images be stored?")
+    print("  This will create the following structure:")
+    print("    - original/  (Generated PNG images)")
+    print("    - webp/      (WebP conversions)")
+    print("    - metadata/  (Image metadata and logs)")
+
+    default_path = "~/Pictures/ai-generated-images"
+
+    # Check for existing config
+    existing_path = default_path
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                existing_config = json.load(f)
+                existing_path = existing_config.get("generated_images_path",
+                                                   existing_config.get("images_dir", default_path))
+        except Exception:
+            pass
+
+    print(f"\n  Current: {existing_path}")
+    print(f"  Default: {default_path}")
+    path_input = input("\n  Path (press Enter for default): ").strip()
+
+    if not path_input:
+        path_input = default_path
+
+    # Expand and validate
+    expanded_path = os.path.expanduser(path_input)
+
+    # Create directory structure
+    try:
+        # Import the initialize function from image_server
+        sys.path.insert(0, str(config_path.parent / "src"))
+        from image_server import initialize_directory_structure
+
+        dirs = initialize_directory_structure(expanded_path)
+        print(f"\n  ✅ Created directory structure:")
+        print(f"     {dirs['original_dir']}")
+        print(f"     {dirs['webp_dir']}")
+        print(f"     {dirs['metadata_dir']}")
+        print(f"     {dirs['json_dir']}")
+    except Exception as e:
+        print(f"\n  ⚠️  Directory structure will be created on first use")
+        print(f"     (Error: {e})")
+
+    # Update config.json
+    updates = {
+        "generated_images_path": path_input,
+        "images_dir": path_input  # For backwards compatibility
+    }
+    write_config_json(config_path, updates)
+    print(f"\n  ✅ Saved to config.json")
+
+    return True
+
+
 def collect_wordpress_config():
     """Collect WordPress site configuration for image uploads."""
     sites = {}
@@ -1051,6 +1112,12 @@ def offer_config_setup(install_dir, selected_servers, collected_keys=None):
         print("\n  You can add API keys later by editing the .env files:")
         for server_id in selected_servers:
             print(f"    {install_dir / server_id / '.env'}")
+
+    # Setup image generation directory structure
+    if "peeperfrog-create-mcp" in selected_servers:
+        config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
+        if not setup_image_generation_path(config_path):
+            print("  ⚠️  Image generation path setup failed, but continuing...")
 
     # Collect WordPress configuration for image server
     wp_sites = None

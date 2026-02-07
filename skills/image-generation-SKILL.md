@@ -51,11 +51,73 @@ peeperfrog-create:generate_image({
 
 ---
 
+## Priority-Based Generation (NEW)
+
+### High Priority (Default) - Immediate Generation
+```javascript
+peeperfrog-create:generate_image({
+  prompt: "A sunset over mountains",
+  priority: "high",  // Default - immediate generation
+  title: "Mountain Sunset",
+  description: "Beautiful sunset over snowy peaks",
+  alternative_text: "Orange sunset over mountain range",
+  caption: "Rocky Mountains at sunset"
+})
+```
+
+- **Cost**: Full price (e.g., $0.039/image for Gemini Pro)
+- **Speed**: 15-90 seconds
+- **Use when**: Immediate results needed, interactive workflows
+
+### Low Priority - Batch API (50% Cost Savings)
+```javascript
+peeperfrog-create:generate_image({
+  prompt: "A sunset over mountains",
+  priority: "low",  // Batch API - 50% discount!
+  provider: "gemini",  // Required - only Gemini supports batch
+  title: "Mountain Sunset",
+  description: "Beautiful sunset over snowy peaks",
+  alternative_text: "Orange sunset over mountain range",
+  caption: "Rocky Mountains at sunset"
+})
+// Returns: {batch_job_id: "...", estimated_completion: "24 hours"}
+
+// Check status later:
+peeperfrog-create:check_batch_status({batch_job_id: "..."})
+
+// Retrieve when complete:
+peeperfrog-create:retrieve_batch_results({batch_job_id: "..."})
+```
+
+- **Cost**: 50% discount (e.g., $0.0195/image vs $0.039)
+- **Speed**: Up to 24 hours
+- **Use when**: Bulk generation, scheduled content, cost optimization
+- **Savings**: $1.95 per 100 images!
+
+### Required Metadata Fields
+
+All image generation requests should include metadata fields:
+
+- `title`: Image title (auto-generated from timestamp if not provided)
+- `description`: Detailed description (uses first 200 chars of prompt if not provided)
+- `alternative_text`: Alt text for accessibility (auto-generated from prompt if not provided)
+- `caption`: Image caption (uses title if not provided)
+
+These fields are:
+- Stored in JSON sidecar files alongside each image
+- Used for WordPress uploads (automatically sets WP metadata)
+- Essential for SEO and accessibility
+- Help with image organization and discovery
+
+---
+
 ## Available MCP Tools
 
 | Tool | Description |
 |------|-------------|
-| `generate_image` | Generate a single image immediately (auto WebP conversion + optional WordPress upload) |
+| `generate_image` | Generate a single image (immediate or batch API). Supports priority="high" (default, immediate) or priority="low" (50% discount, 24hr wait) |
+| `check_batch_status` | Check status of async batch job (use after generate_image with priority="low") |
+| `retrieve_batch_results` | Retrieve and save completed batch results to disk |
 | `add_to_batch` | Queue an image for batch generation |
 | `remove_from_batch` | Remove from queue by index or filename |
 | `view_batch_queue` | View queued images |
@@ -65,7 +127,7 @@ peeperfrog-create:generate_image({
 | `upload_to_wordpress` | Upload WebP images to WordPress (credentials from config.json) |
 | `list_wordpress_sites` | List configured WordPress site URLs (credentials stay secure) |
 | `get_generated_webp_images` | Get base64 data of WebP images |
-| `get_media_id_map` | Get filename → WordPress media ID mapping (no image data) |
+| `get_media_id_map` | Get filename → WordPress media ID + complete metadata mapping (reads from metadata JSON files) |
 
 **Note:** Both `generate_image` and `run_batch` now:
 - Convert to WebP automatically (`convert_to_webp: true` by default, quality 85)

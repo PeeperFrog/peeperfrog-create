@@ -14,6 +14,18 @@ import requests
 import subprocess
 from datetime import datetime
 
+# Import metadata functions
+try:
+    from metadata import create_metadata_dict, write_metadata_file, copy_metadata_for_webp
+except ImportError:
+    # Fallback if metadata module not available
+    def create_metadata_dict(*args, **kwargs):
+        return {}
+    def write_metadata_file(*args, **kwargs):
+        return None
+    def copy_metadata_for_webp(*args, **kwargs):
+        return None
+
 # Load config from same directory as this script
 CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config.json")
 
@@ -73,14 +85,52 @@ def load_config():
     with open(CONFIG_PATH, 'r') as f:
         cfg = json.load(f)
     config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
-    for key in ("images_dir", "batch_manager_script"):
+    for key in ("images_dir", "generated_images_path", "batch_manager_script"):
         if key in cfg:
             cfg[key] = os.path.expanduser(cfg[key])
             if not os.path.isabs(cfg[key]):
                 cfg[key] = os.path.join(config_dir, cfg[key])
+    # Backwards compatibility
+    if "generated_images_path" not in cfg and "images_dir" in cfg:
+        cfg["generated_images_path"] = cfg["images_dir"]
     return cfg
 
 CFG = load_config()
+
+# Import directory structure helpers from image_server
+# Since this might not be available in all contexts, provide fallback
+try:
+    from image_server import (
+        initialize_directory_structure,
+        get_original_path,
+        get_webp_path,
+        get_generation_log_path,
+        DIRS
+    )
+except ImportError:
+    # Fallback: create basic directory structure
+    base_path = CFG.get("generated_images_path", CFG.get("images_dir"))
+    DIRS = {
+        "original_dir": os.path.join(base_path, "original"),
+        "webp_dir": os.path.join(base_path, "webp"),
+        "metadata_dir": os.path.join(base_path, "metadata"),
+        "json_dir": os.path.join(base_path, "metadata", "json")
+    }
+    for d in DIRS.values():
+        os.makedirs(d, exist_ok=True)
+
+    def get_original_path(filename):
+        return os.path.join(DIRS["original_dir"], filename)
+
+    def get_webp_path(filename):
+        return os.path.join(DIRS["webp_dir"], filename)
+
+    def get_generation_log_path():
+        now = datetime.now()
+        month_name = now.strftime("%B").lower()
+        year = now.year
+        filename = f"generation_log_{month_name}_{year}.csv"
+        return os.path.join(DIRS["metadata_dir"], filename)
 
 # --- Pricing ---
 PRICING_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pricing.json")
@@ -95,22 +145,22 @@ def load_pricing():
 PRICING = load_pricing()
 
 # --- Generation Log ---
-LOG_FILE = os.path.join(os.path.expanduser(CFG.get("images_dir", "~/Pictures/ai-generated-images")), "generation_log.csv")
 LOG_HEADER = ["datetime", "filename", "status", "cost_usd", "provider", "quality", "aspect_ratio"]
 
-def ensure_log_exists():
+def ensure_log_exists(log_file):
     """Create log file with header if it doesn't exist."""
-    if not os.path.exists(LOG_FILE):
-        os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
-        with open(LOG_FILE, 'w', newline='') as f:
+    if not os.path.exists(log_file):
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
+        with open(log_file, 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(LOG_HEADER)
 
 def log_generation(filename, status, cost_usd=None, provider=None, quality=None, aspect_ratio=None):
-    """Append a generation record to the CSV log."""
-    ensure_log_exists()
+    """Append a generation record to month/year stamped CSV log."""
+    log_file = get_generation_log_path()
+    ensure_log_exists(log_file)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(LOG_FILE, 'a', newline='') as f:
+    with open(log_file, 'a', newline='') as f:
         writer = csv.writer(f)
         writer.writerow([
             timestamp,
@@ -125,6 +175,7 @@ def log_generation(filename, status, cost_usd=None, provider=None, quality=None,
 def get_cost_from_log(filename=None, start_datetime=None, end_datetime=None):
     """
     Query cost from generation log by filename or date/time range.
+    Searches across all month/year stamped log files in metadata/ directory.
 
     Args:
         filename: Image filename (with or without .png extension)
@@ -134,8 +185,18 @@ def get_cost_from_log(filename=None, start_datetime=None, end_datetime=None):
     Returns:
         dict with matching records and total cost
     """
-    if not os.path.exists(LOG_FILE):
-        return {"error": "Log file not found", "records": [], "total_cost": 0}
+    metadata_dir = DIRS.get("metadata_dir")
+    if not metadata_dir or not os.path.exists(metadata_dir):
+        return {"error": "Metadata directory not found", "records": [], "total_cost": 0}
+
+    # Find all generation log files
+    log_files = []
+    for filename_entry in os.listdir(metadata_dir):
+        if filename_entry.startswith("generation_log_") and filename_entry.endswith(".csv"):
+            log_files.append(os.path.join(metadata_dir, filename_entry))
+
+    if not log_files:
+        return {"error": "No generation log files found", "records": [], "total_cost": 0}
 
     # Normalize filename (strip extension)
     search_name = None
@@ -164,39 +225,51 @@ def get_cost_from_log(filename=None, start_datetime=None, end_datetime=None):
 
     records = []
     total_cost = 0.0
+    log_files_searched = []
 
-    with open(LOG_FILE, 'r', newline='') as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            # Check filename match
-            if search_name:
-                row_name = row["filename"].rsplit('.', 1)[0] if '.' in row["filename"] else row["filename"]
-                if row_name != search_name:
-                    continue
+    # Search across all log files
+    for log_file in sorted(log_files):
+        if not os.path.exists(log_file):
+            continue
 
-            # Check date range
-            if start_dt or end_dt:
-                try:
-                    row_dt = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    continue
-                if start_dt and row_dt < start_dt:
-                    continue
-                if end_dt and row_dt > end_dt:
-                    continue
+        log_files_searched.append(log_file)
 
-            records.append(row)
-            if row["cost_usd"]:
-                try:
-                    total_cost += float(row["cost_usd"])
-                except ValueError:
-                    pass
+        try:
+            with open(log_file, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    # Check filename match
+                    if search_name:
+                        row_name = row["filename"].rsplit('.', 1)[0] if '.' in row["filename"] else row["filename"]
+                        if row_name != search_name:
+                            continue
+
+                    # Check date range
+                    if start_dt or end_dt:
+                        try:
+                            row_dt = datetime.strptime(row["datetime"], "%Y-%m-%d %H:%M:%S")
+                        except ValueError:
+                            continue
+                        if start_dt and row_dt < start_dt:
+                            continue
+                        if end_dt and row_dt > end_dt:
+                            continue
+
+                    records.append(row)
+                    if row["cost_usd"]:
+                        try:
+                            total_cost += float(row["cost_usd"])
+                        except ValueError:
+                            pass
+        except Exception:
+            # Skip files that can't be read
+            continue
 
     return {
         "records": records,
         "count": len(records),
         "total_cost": round(total_cost, 6),
-        "log_file": LOG_FILE
+        "log_files_searched": log_files_searched
     }
 
 def estimate_cost(provider, quality, image_size, aspect_ratio, num_reference_images=0, search_grounding=False, thinking_level=None, model_alias=None):
@@ -541,14 +614,40 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
 
             opts = gemini_opts or {}
             cost = estimate_cost(provider, quality, image_size, aspect_ratio, len(reference_images), opts.get("search_grounding", False), opts.get("thinking_level"), model_alias)
+
+            # Create metadata for the image
+            # Extract metadata fields from prompt_data
+            title = prompt_data.get('title', filename.replace('.png', '').replace('_', ' ').title())
+            description = prompt_data.get('description', prompt[:200])  # Use first 200 chars of prompt as description
+            alternative_text = prompt_data.get('alternative_text', f"AI-generated image: {prompt[:100]}")
+            caption = prompt_data.get('caption', title)
+
+            metadata = create_metadata_dict(
+                prompt=prompt,
+                title=title,
+                description=description,
+                alternative_text=alternative_text,
+                caption=caption,
+                provider=provider,
+                model=model_used,
+                aspect_ratio=aspect_ratio,
+                image_size=image_size,
+                quality=100,  # PNG is lossless
+                cost=cost or 0.0
+            )
+            metadata_path = write_metadata_file(output_path, metadata)
+
             result = {
                 "filename": filename, "status": "success", "path": output_path,
                 "provider": provider, "resolution": resolution, "aspect_ratio": aspect_ratio,
-                "reference_images_used": len(reference_images)
+                "reference_images_used": len(reference_images),
+                "metadata_path": metadata_path
             }
             if cost is not None:
                 result["estimated_cost_usd"] = cost
             print(f"Saved to: {output_path}")
+            if metadata_path:
+                print(f"Metadata: {metadata_path}")
 
             # WebP conversion
             if convert_to_webp and webp_dir:
@@ -556,6 +655,8 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
                 if wp:
                     result["webp_path"] = wp
                     result["webp_size"] = ws
+                    # Copy metadata to WebP
+                    copy_metadata_for_webp(output_path, wp, webp_quality)
             remove_from_queue(queue_filename)
             log_generation(filename, "success", cost, provider, quality, aspect_ratio)
 
@@ -570,10 +671,6 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
             print(f"Waiting {delay} seconds...")
             time.sleep(delay)
 
-    results_file = os.path.join(output_dir, 'batch_results.json')
-    with open(results_file, 'w') as f:
-        json.dump(results, f, indent=2)
-
     total_cost = sum(r.get("estimated_cost_usd", 0) for r in results if r["status"] == "success")
 
     print(f"\n{'='*60}")
@@ -583,7 +680,9 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
     print(f"Failed: {sum(1 for r in results if r['status'] == 'error')}")
     if total_cost > 0:
         print(f"Estimated total cost: ${total_cost:.4f}")
-    print(f"Results saved to: {results_file}")
+    print(f"Results logged to: {get_generation_log_path()}")
+    print(f"Images saved to: {output_dir}")
+    print(f"Metadata saved to: {DIRS.get('json_dir', 'metadata/json/')}")
     print(f"{'='*60}")
 
 if __name__ == "__main__":

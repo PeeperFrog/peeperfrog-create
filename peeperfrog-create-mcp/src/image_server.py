@@ -51,19 +51,103 @@ def load_config():
         cfg = json.load(f)
     # Expand ~ and resolve relative paths against config directory
     config_dir = os.path.dirname(os.path.abspath(CONFIG_PATH))
-    for key in ("images_dir", "batch_manager_script", "batch_generate_script", "webp_convert_script"):
+    for key in ("images_dir", "generated_images_path", "batch_manager_script", "batch_generate_script", "webp_convert_script"):
         if key in cfg:
             cfg[key] = os.path.expanduser(cfg[key])
             if not os.path.isabs(cfg[key]):
                 cfg[key] = os.path.join(config_dir, cfg[key])
-    # Derived paths
-    cfg["batch_dir"] = os.path.join(cfg["images_dir"], cfg.get("batch_subdir", "batch"))
-    cfg["webp_dir"] = os.path.join(cfg["images_dir"], cfg.get("webp_subdir", "webp"))
-    cfg["queue_file"] = os.path.join(cfg["images_dir"], cfg.get("queue_filename", "batch_queue.json"))
+    # Backwards compatibility: use generated_images_path if available, otherwise images_dir
+    if "generated_images_path" not in cfg and "images_dir" in cfg:
+        cfg["generated_images_path"] = cfg["images_dir"]
+    # Derived paths (kept for backwards compatibility)
+    cfg["batch_dir"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("batch_subdir", "batch"))
+    cfg["webp_dir"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("webp_subdir", "webp"))
+    cfg["queue_file"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("queue_filename", "batch_queue.json"))
     return cfg
 
 CFG = load_config()
 MAX_REF_IMAGES = CFG.get("max_reference_images", 14)
+
+# --- Directory Structure Management ---
+
+def initialize_directory_structure(base_path):
+    """
+    Create new folder structure for generated images.
+
+    Structure:
+    base_path/
+      ├── original/       # All generated PNG images
+      ├── webp/          # All WebP conversions
+      └── metadata/      # All metadata
+          ├── json/      # Image .json sidecar files
+          ├── batch_queue.json
+          └── generation_log_MONTH_YEAR.csv
+
+    Args:
+        base_path: Base directory path (can include ~)
+
+    Returns:
+        Dict with paths to original_dir, webp_dir, metadata_dir, json_dir
+    """
+    base = os.path.expanduser(base_path)
+    dirs = {
+        "original_dir": os.path.join(base, "original"),
+        "webp_dir": os.path.join(base, "webp"),
+        "metadata_dir": os.path.join(base, "metadata"),
+        "json_dir": os.path.join(base, "metadata", "json")
+    }
+    for d in dirs.values():
+        os.makedirs(d, exist_ok=True)
+    return dirs
+
+def get_original_path(filename):
+    """Return absolute path in original/ directory"""
+    return os.path.join(DIRS["original_dir"], filename)
+
+def get_webp_path(filename):
+    """Return absolute path in webp/ directory"""
+    return os.path.join(DIRS["webp_dir"], filename)
+
+def get_metadata_json_path(filename):
+    """Return absolute path to .json sidecar file in metadata/json/"""
+    return os.path.join(DIRS["json_dir"], f"{filename}.json")
+
+def get_queue_file_path():
+    """Return path to batch_queue.json in metadata/"""
+    return os.path.join(DIRS["metadata_dir"], "batch_queue.json")
+
+def get_generation_log_path():
+    """Return path to month/year stamped generation log CSV"""
+    now = datetime.now()
+    month_name = now.strftime("%B").lower()
+    year = now.year
+    filename = f"generation_log_{month_name}_{year}.csv"
+    return os.path.join(DIRS["metadata_dir"], filename)
+
+def get_image_path_with_fallback(filename):
+    """
+    Try new structure first (original/), fall back to old (batch/).
+    Allows reading old files during transition.
+    """
+    # Try new structure
+    new_path = get_original_path(filename)
+    if os.path.exists(new_path):
+        return new_path
+
+    # Fall back to old structure
+    old_batch_dir = CFG.get("batch_dir")
+    if old_batch_dir:
+        old_path = os.path.join(old_batch_dir, filename)
+        if os.path.exists(old_path):
+            debug_log(f"WARNING: Using old directory structure for {filename}")
+            return old_path
+
+    return new_path  # Return new path even if doesn't exist (for creation)
+
+# Initialize directory structure
+# Use generated_images_path if available, otherwise fall back to images_dir
+base_images_path = CFG.get("generated_images_path", CFG.get("images_dir"))
+DIRS = initialize_directory_structure(base_images_path)
 
 # --- Debug logging ---
 DEBUG_ENABLED = CFG.get("debug", False)
@@ -683,8 +767,17 @@ def _convert_png_to_webp(png_path, webp_quality=85, webp_dir=None):
         debug_log(f"WebP conversion failed for {png_path}: {e}", "ERROR")
         return None, 0
 
-def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general", convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, wp_url=None):
-    """Generate image using the specified provider."""
+def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_image=None, reference_images=None, quality="pro", provider=None, search_grounding=False, thinking_level=None, media_resolution=None, model=None, auto_mode=None, style_hint="general", convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, wp_url=None, priority="high", title="", description="", alternative_text="", caption=""):
+    """
+    Generate image using the specified provider.
+
+    Args:
+        priority: "high" (immediate, full price) or "low" (batch API, 50% discount, Gemini only)
+        title: Image title (required for metadata)
+        description: Image description (required for metadata)
+        alternative_text: Alt text for accessibility (required for metadata)
+        caption: Image caption (required for metadata)
+    """
     auto_selected = None
     if auto_mode:
         needs_refs = bool(reference_image or reference_images)
@@ -709,7 +802,68 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
     if PROVIDERS[provider]["supports_references"].get(quality, False):
         ref_paths = _normalize_reference_images(reference_images, reference_image)
 
-    # Dispatch to provider
+    # Handle priority="low" for batch API (50% discount)
+    if priority == "low":
+        if provider != "gemini":
+            raise Exception("priority='low' (batch API) only supported for Gemini provider")
+
+        # Import batch API module
+        from gemini_batch import submit_batch_job
+
+        # Auto-generate metadata if not provided
+        if not title:
+            title = f"AI-generated image - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        if not description:
+            description = prompt[:200]
+        if not alternative_text:
+            alternative_text = f"AI-generated image: {prompt[:100]}"
+        if not caption:
+            caption = title
+
+        # Build batch request
+        batch_request = {
+            "prompt": prompt,
+            "aspect_ratio": aspect_ratio,
+            "image_size": image_size,
+            "quality": quality,
+            "reference_images": ref_paths,
+            "gemini_opts": {
+                "search_grounding": search_grounding,
+                "thinking_level": thinking_level,
+                "media_resolution": media_resolution
+            },
+            "title": title,
+            "description": description,
+            "alternative_text": alternative_text,
+            "caption": caption
+        }
+
+        # Submit to batch API
+        batch_result = submit_batch_job([batch_request], os.environ.get("GEMINI_API_KEY"))
+
+        if not batch_result.get("success"):
+            raise Exception(f"Batch API submission failed: {batch_result.get('error')}")
+
+        # Calculate cost with 50% discount
+        cost = estimate_cost(provider, quality, image_size, aspect_ratio, len(ref_paths), search_grounding, thinking_level, model)
+        if cost:
+            cost = cost * 0.5  # 50% discount for batch API
+
+        return {
+            "success": True,
+            "queued": True,
+            "priority": "low",
+            "batch_job_id": batch_result["batch_job_id"],
+            "request_count": 1,
+            "estimated_completion": "24 hours",
+            "estimated_cost_usd": cost,
+            "provider": provider,
+            "quality": quality,
+            "note": "Use check_batch_status tool to monitor progress",
+            "message": f"Image queued for batch generation (50% discount). Job ID: {batch_result['batch_job_id']}"
+        }
+
+    # Dispatch to provider (immediate generation for priority="high")
     if provider == "gemini":
         image_data, used_model, resolution = _generate_gemini(prompt, aspect_ratio, image_size, quality, ref_paths, search_grounding, thinking_level, media_resolution)
     elif provider == "openai":
@@ -719,22 +873,53 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
     else:
         raise Exception(f"Unknown provider: {provider}")
 
-    output_dir = CFG["images_dir"]
-    os.makedirs(output_dir, exist_ok=True)
-
+    # Save to new directory structure (original/ folder)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{output_dir}/generated_image_{timestamp}.png"
+    basename = f"generated_image_{timestamp}.png"
+    filename = get_original_path(basename)
 
     with open(filename, 'wb') as f:
         f.write(base64.b64decode(image_data))
 
     cost = estimate_cost(provider, quality, image_size, aspect_ratio, len(ref_paths), search_grounding, thinking_level, model)
 
+    # Create metadata
+    from metadata import create_metadata_dict, write_metadata_file
+
+    # Auto-generate metadata if not provided
+    if not title:
+        title = f"AI-generated image - {timestamp}"
+    if not description:
+        description = prompt[:200]
+    if not alternative_text:
+        alternative_text = f"AI-generated image: {prompt[:100]}"
+    if not caption:
+        caption = title
+
+    metadata = create_metadata_dict(
+        prompt=prompt,
+        title=title,
+        description=description,
+        alternative_text=alternative_text,
+        caption=caption,
+        provider=provider,
+        model=used_model,
+        aspect_ratio=aspect_ratio,
+        image_size=image_size,
+        quality=100,
+        cost=cost or 0.0
+    )
+    metadata_path = write_metadata_file(filename, metadata)
+
     # WebP conversion
     webp_path = None
     webp_size = 0
     if convert_to_webp:
         webp_path, webp_size = _convert_png_to_webp(filename, webp_quality)
+        if webp_path:
+            # Copy metadata to WebP
+            from metadata import copy_metadata_for_webp
+            copy_metadata_for_webp(filename, webp_path, webp_quality)
 
     result = {
         "success": True,
@@ -1008,6 +1193,49 @@ def _get_wordpress_credentials(wp_url):
     return normalized_url, wp_user, wp_password
 
 
+def _update_wordpress_metadata(media_id, wp_url, metadata_dict):
+    """
+    Update WordPress media item with metadata from JSON file.
+
+    Args:
+        media_id: WordPress media ID (integer)
+        wp_url: WordPress site URL
+        metadata_dict: Metadata from read_metadata_file()
+
+    Returns:
+        {"success": True/False, "media_id": 123, "error": "..."}
+    """
+    normalized_url, wp_user, wp_password, _ = _get_wordpress_config(wp_url)
+
+    update_url = f"{normalized_url}/wp-json/wp/v2/media/{media_id}"
+
+    payload = {
+        "title": metadata_dict.get("title", ""),
+        "alt_text": metadata_dict.get("alternative_text", ""),
+        "caption": metadata_dict.get("caption", ""),
+        "description": metadata_dict.get("description", "")
+    }
+
+    try:
+        response = requests.post(
+            update_url,
+            json=payload,
+            auth=(wp_user, wp_password),
+            headers={'Content-Type': 'application/json'}
+        )
+
+        if response.status_code in [200, 201]:
+            return {"success": True, "media_id": media_id}
+        else:
+            return {
+                "success": False,
+                "media_id": media_id,
+                "error": f"HTTP {response.status_code}: {response.text}"
+            }
+    except Exception as e:
+        return {"success": False, "media_id": media_id, "error": str(e)}
+
+
 def _upload_single_to_wordpress(file_path, wp_url):
     """Upload a single image file to WordPress media library."""
     normalized_url, wp_user, wp_password, alt_text_prefix = _get_wordpress_config(wp_url)
@@ -1032,13 +1260,34 @@ def _upload_single_to_wordpress(file_path, wp_url):
 
     if response.status_code == 201:
         media_data = response.json()
+        media_id = media_data['id']
+
+        # Read metadata and update WordPress with complete metadata
+        from metadata import read_metadata_file, update_wordpress_info
+        metadata = read_metadata_file(file_path)
+        metadata_updated = False
+
+        if metadata:
+            # Update WordPress with metadata fields
+            metadata_result = _update_wordpress_metadata(media_id, wp_url, metadata)
+            if not metadata_result["success"]:
+                debug_log(f"Warning: Failed to update metadata for media_id {media_id}: {metadata_result.get('error')}", "WARNING")
+            else:
+                metadata_updated = True
+
+            # Store WordPress info back to metadata JSON
+            update_wordpress_info(file_path, media_id, media_data['source_url'])
+
         return {
             "success": True,
-            "alt_text": alt_text,
+            "alt_text": metadata.get("alternative_text", alt_text) if metadata else alt_text,
             "filename": filename,
-            "media_id": media_data['id'],
+            "media_id": media_id,
             "url": media_data['source_url'],
-            "title": media_data['title']['rendered']
+            "title": metadata.get("title", media_data['title']['rendered']) if metadata else media_data['title']['rendered'],
+            "description": metadata.get("description", "") if metadata else "",
+            "caption": metadata.get("caption", "") if metadata else "",
+            "metadata_updated": metadata_updated
         }
     else:
         return {
@@ -1103,78 +1352,86 @@ def get_generated_webp_images(directory="webp", limit=10):
     return {"success": True, "images": images, "count": len(images)}
 
 
-def get_media_id_map(directory="batch", output_format="json"):
-    """Get metadata mapping for uploaded images without returning image data.
+def get_media_id_map(directory="original", output_format="json"):
+    """Get metadata mapping for images by scanning metadata/json/ files.
 
-    Reads batch_results.json to extract WordPress upload metadata.
-    Useful for getting media IDs to set featured images on posts.
+    Reads metadata JSON sidecar files to extract complete image metadata
+    including WordPress upload info if available.
 
     Args:
-        directory: Subdirectory within images_dir (default: "batch")
+        directory: "original" or "webp" (for backwards compatibility)
         output_format: "json" (default), "yaml", or "python_dict"
 
     Returns:
-        Mapping of filename to metadata (media_id, url, file_size, upload_timestamp)
+        {
+            "success": True,
+            "media_map": {
+                "image1.png": {
+                    "title": "...",
+                    "description": "...",
+                    "alternative_text": "...",
+                    "caption": "...",
+                    "prompt": "...",
+                    "provider": "gemini",
+                    "model": "...",
+                    "aspect_ratio": "16:9",
+                    "cost": 0.039,
+                    "wordpress_media_id": 123,  // if uploaded
+                    "wordpress_url": "https://..."  // if uploaded
+                }
+            }
+        }
     """
     from pathlib import Path
 
-    batch_dir = os.path.join(CFG["images_dir"], directory)
-    results_file = os.path.join(batch_dir, "batch_results.json")
+    json_dir = DIRS.get("json_dir")
+    if not json_dir or not os.path.exists(json_dir):
+        return {
+            "success": False,
+            "error": "Metadata directory not found",
+            "media_map": {},
+            "count": 0
+        }
 
     media_map = {}
 
-    # Read batch_results.json for WordPress metadata
     try:
-        with open(results_file, 'r') as f:
-            batch_results = json.load(f)
-
-        for r in batch_results:
-            if r.get("status") != "success":
+        # Scan metadata/json/ directory for all JSON files
+        for json_file in os.listdir(json_dir):
+            if not json_file.endswith('.json'):
                 continue
 
-            # Determine which file to use (prefer webp)
-            file_path = r.get("webp_path") or r.get("path")
-            if not file_path:
+            json_path = os.path.join(json_dir, json_file)
+            try:
+                with open(json_path, 'r') as f:
+                    metadata = json.load(f)
+
+                # Remove .json extension to get image filename
+                image_filename = json_file[:-5]
+
+                # Add file path and size if image exists
+                if directory == "webp":
+                    image_path = get_webp_path(image_filename)
+                else:
+                    image_path = get_original_path(image_filename)
+
+                if os.path.exists(image_path):
+                    metadata["file_path"] = image_path
+                    metadata["file_size"] = os.path.getsize(image_path)
+
+                media_map[image_filename] = metadata
+
+            except (json.JSONDecodeError, Exception) as e:
+                debug_log(f"Failed to read metadata for {json_file}: {e}", "WARNING")
                 continue
 
-            filename = os.path.basename(file_path)
-            entry = {
-                "file_path": file_path,
-                "file_size": r.get("webp_size") or 0,
-            }
-
-            # Add WordPress metadata if uploaded
-            if r.get("wordpress_media_id"):
-                entry["wordpress_media_id"] = r["wordpress_media_id"]
-                entry["wordpress_url"] = r.get("wordpress_url")
-
-            # Try to get file modification time as upload timestamp
-            if os.path.exists(file_path):
-                entry["file_size"] = os.path.getsize(file_path)
-                entry["modified_time"] = datetime.fromtimestamp(
-                    os.path.getmtime(file_path)
-                ).strftime("%Y-%m-%d %H:%M:%S")
-
-            # Add generation metadata
-            if r.get("provider"):
-                entry["provider"] = r["provider"]
-            if r.get("aspect_ratio"):
-                entry["aspect_ratio"] = r["aspect_ratio"]
-
-            media_map[filename] = entry
-
-    except (FileNotFoundError, json.JSONDecodeError):
-        # Fall back to scanning directory for files
-        image_files = sorted(Path(batch_dir).glob("*.webp"), key=os.path.getmtime, reverse=True)
-        for img_path in image_files:
-            filename = img_path.name
-            media_map[filename] = {
-                "file_path": str(img_path),
-                "file_size": os.path.getsize(img_path),
-                "modified_time": datetime.fromtimestamp(
-                    os.path.getmtime(img_path)
-                ).strftime("%Y-%m-%d %H:%M:%S"),
-            }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "media_map": {},
+            "count": 0
+        }
 
     # Format output
     if output_format == "yaml":
@@ -1331,7 +1588,29 @@ def handle_tools_list(request_id):
                             "convert_to_webp": {"type": "boolean", "description": "Convert generated image to WebP format immediately after generation", "default": True},
                             "webp_quality": {"type": "integer", "description": "WebP quality (0-100) when convert_to_webp is enabled", "default": 85, "minimum": 0, "maximum": 100},
                             "upload_to_wordpress": {"type": "boolean", "description": "Upload the generated image to WordPress immediately after generation", "default": False},
-                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Required if upload_to_wordpress is true. Must match an entry in config.json wordpress section."}
+                            "wp_url": {"type": "string", "description": "WordPress site URL (e.g., https://example.com). Required if upload_to_wordpress is true. Must match an entry in config.json wordpress section."},
+                            "priority": {
+                                "type": "string",
+                                "enum": ["high", "low"],
+                                "default": "high",
+                                "description": "Generation priority. 'high': immediate generation at full price. 'low': batch API with 50% discount but 24-hour wait (Gemini only). For urgent needs use 'high', for bulk/planned content use 'low' to save 50% on costs."
+                            },
+                            "title": {
+                                "type": "string",
+                                "description": "Image title for metadata. Auto-generated from timestamp if not provided. Used for WordPress uploads and image organization."
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Detailed image description for metadata. Uses first 200 chars of prompt if not provided. Used for WordPress and accessibility."
+                            },
+                            "alternative_text": {
+                                "type": "string",
+                                "description": "Alt text for accessibility. Auto-generated from prompt if not provided. Critical for screen readers and SEO."
+                            },
+                            "caption": {
+                                "type": "string",
+                                "description": "Image caption for metadata. Uses title if not provided. Displayed with image in WordPress and galleries."
+                            }
                         },
                         "required": ["prompt"]
                     }
@@ -1463,6 +1742,34 @@ def handle_tools_list(request_id):
                         },
                         "required": []
                     }
+                },
+                {
+                    "name": "check_batch_status",
+                    "description": "Check status of async batch job submitted with priority='low' or run_batch. Returns job status, progress, and results if complete. Use this to monitor progress of batch image generation jobs.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "batch_job_id": {
+                                "type": "string",
+                                "description": "Batch job ID returned from generate_image with priority='low'"
+                            }
+                        },
+                        "required": ["batch_job_id"]
+                    }
+                },
+                {
+                    "name": "retrieve_batch_results",
+                    "description": "Retrieve and save completed batch results to disk. Downloads images from completed batch job, creates metadata files, and saves to original/ directory. Call this after check_batch_status shows the job is complete.",
+                    "inputSchema": {
+                        "type": "object",
+                        "properties": {
+                            "batch_job_id": {
+                                "type": "string",
+                                "description": "Batch job ID returned from generate_image with priority='low'"
+                            }
+                        },
+                        "required": ["batch_job_id"]
+                    }
                 }
             ]
         }
@@ -1489,7 +1796,12 @@ def handle_tool_call(request_id, tool_name, arguments):
                 arguments.get("convert_to_webp", True),
                 arguments.get("webp_quality", 85),
                 arguments.get("upload_to_wordpress", False),
-                arguments.get("wp_url")
+                arguments.get("wp_url"),
+                arguments.get("priority", "high"),
+                arguments.get("title", ""),
+                arguments.get("description", ""),
+                arguments.get("alternative_text", ""),
+                arguments.get("caption", "")
             )
         elif tool_name == "add_to_batch":
             result = add_to_batch(
@@ -1556,6 +1868,19 @@ def handle_tool_call(request_id, tool_name, arguments):
                 arguments.get("filename"),
                 arguments.get("start_datetime"),
                 arguments.get("end_datetime")
+            )
+        elif tool_name == "check_batch_status":
+            from gemini_batch import check_batch_status
+            result = check_batch_status(
+                arguments.get("batch_job_id"),
+                os.environ.get("GEMINI_API_KEY")
+            )
+        elif tool_name == "retrieve_batch_results":
+            from gemini_batch import retrieve_batch_results
+            result = retrieve_batch_results(
+                arguments.get("batch_job_id"),
+                os.environ.get("GEMINI_API_KEY"),
+                DIRS["original_dir"]
             )
         else:
             raise Exception(f"Unknown tool: {tool_name}")
