@@ -1610,10 +1610,9 @@ def main():
                     print(f"\n  {MCP_SERVERS[server_id]['name']}:")
                     install_dependencies(mcp_dir, MCP_SERVERS[server_id])
 
-        # Update skills
-        skills_installed = install_skills(install_dir)
-        if skills_installed > 0:
-            skills_updated = True
+        # Update skills (only if skill files changed or new ones added)
+        if skills_updated:
+            skills_installed = install_skills(install_dir)
 
         print("\n✅ Update complete!")
 
