@@ -852,7 +852,10 @@ def run_batch(convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, 
     try:
         with open(CFG["queue_file"], 'r') as f:
             queue_data = json.load(f)
-            queue_size = len(queue_data) if isinstance(queue_data, list) else 0
+            if isinstance(queue_data, dict):
+                queue_size = len(queue_data.get("prompts", []))
+            elif isinstance(queue_data, list):
+                queue_size = len(queue_data)
     except (FileNotFoundError, json.JSONDecodeError):
         pass
 
