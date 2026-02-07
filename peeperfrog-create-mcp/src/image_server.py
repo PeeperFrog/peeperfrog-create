@@ -699,6 +699,10 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
             provider = "together"
         provider = provider if provider in PROVIDERS else DEFAULT_PROVIDER
         quality = quality if quality in ("pro", "fast") else "pro"
+        # Reference images require Gemini pro - override provider/quality if refs provided
+        if (reference_image or reference_images) and not PROVIDERS[provider]["supports_references"].get(quality, False):
+            provider = "gemini"
+            quality = "pro"
 
     # Reference images only supported by certain providers/quality combos
     ref_paths = []
@@ -786,6 +790,10 @@ def add_to_batch(prompt, filename=None, aspect_ratio="16:9", image_size="large",
             provider = "together"
         provider = provider if provider in PROVIDERS else DEFAULT_PROVIDER
         quality = quality if quality in ("pro", "fast") else "pro"
+        # Reference images require Gemini pro - override provider/quality if refs provided
+        if (reference_image or reference_images) and not PROVIDERS[provider]["supports_references"].get(quality, False):
+            provider = "gemini"
+            quality = "pro"
 
     ref_paths = []
     if PROVIDERS[provider]["supports_references"].get(quality, False):
@@ -821,6 +829,11 @@ def add_to_batch(prompt, filename=None, aspect_ratio="16:9", image_size="large",
     cost = estimate_cost(provider, quality, image_size or "large", aspect_ratio or "16:9", len(ref_paths), search_grounding, thinking_level, model)
     if cost is not None:
         batch_result["estimated_cost_usd"] = cost
+    # Add timing guidance based on queue size
+    queue_size = batch_result.get("queue_size", 0)
+    if queue_size > 0:
+        est_minutes = round(queue_size * 48 / 60, 1)  # ~48 seconds per image average
+        batch_result["run_batch_time_estimate"] = f"When you call run_batch, expect it to take approximately {est_minutes} minutes for {queue_size} images. This is normal - do not assume the call failed."
     return batch_result
 
 def remove_from_batch(identifier):
@@ -834,10 +847,26 @@ def view_batch_queue():
     return json.loads(result.stdout)
 
 def run_batch(convert_to_webp=True, webp_quality=85, upload_to_wordpress=False, wp_url=None):
+    # Count queue items for time estimate
+    queue_size = 0
+    try:
+        with open(CFG["queue_file"], 'r') as f:
+            queue_data = json.load(f)
+            queue_size = len(queue_data) if isinstance(queue_data, list) else 0
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    if queue_size == 0:
+        return {"success": False, "error": "Batch queue is empty. Use add_to_batch to queue images first."}
+
     env = os.environ.copy()
     cmd = ["python3", CFG["batch_generate_script"], CFG["queue_file"], CFG["batch_dir"]]
     if convert_to_webp:
         cmd.extend(["--convert-to-webp", "--webp-quality", str(webp_quality), "--webp-dir", CFG["webp_dir"]])
+
+    # Send progress notification so the client knows we're working
+    debug_log(f"Starting batch generation of {queue_size} images (estimated {queue_size * 45 + queue_size * 3} seconds)")
+
     result = subprocess.run(cmd, capture_output=True, text=True, env=env)
 
     # Parse batch_results.json for file paths and summary stats
@@ -1274,7 +1303,7 @@ def handle_tools_list(request_id):
                 },
                 {
                     "name": "generate_image",
-                    "description": "Generate a single image immediately. Supports multiple providers: 'gemini' (default, Google Gemini), 'openai' (gpt-image-1), 'together' (FLUX models). Use quality='pro' for high-quality or 'fast' for cheaper/quicker generation.",
+                    "description": "Generate a single image immediately. Supports multiple providers: 'gemini' (default, Google Gemini), 'openai' (gpt-image-1), 'together' (FLUX models). Use quality='pro' for high-quality or 'fast' for cheaper/quicker generation. NOTE: Image generation takes 15-90 seconds per image depending on provider and quality. This is normal - do NOT assume the call has failed while it is still running. If reference images are provided, the provider will automatically be set to Gemini pro (the only provider that supports reference images).",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -1306,7 +1335,7 @@ def handle_tools_list(request_id):
                 },
                 {
                     "name": "add_to_batch",
-                    "description": "Add an image to the batch queue for later generation. Supports providers: 'gemini' (default), 'openai', 'together'.",
+                    "description": "Add an image to the batch queue for later generation. Supports providers: 'gemini' (default), 'openai', 'together'. If reference images are provided, the provider will automatically be set to Gemini pro (the only provider that supports reference images). Note: when you later call run_batch, expect 30-90 seconds per queued image.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -1352,7 +1381,7 @@ def handle_tools_list(request_id):
                 },
                 {
                     "name": "run_batch",
-                    "description": "Execute batch generation for all queued images",
+                    "description": "Execute batch generation for all queued images. IMPORTANT: This call takes a long time - typically 30-90 seconds PER IMAGE in the queue, plus API delays between images. A batch of 10 images can take 5-15 minutes. This is completely normal. Do NOT assume the call has failed or timed out - wait for it to complete. If you need to check progress while a batch is running, use view_batch_queue (items are removed as they complete) or get_generation_cost (logged as each image finishes).",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
