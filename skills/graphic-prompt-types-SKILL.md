@@ -1,5 +1,5 @@
 ---
-name: Graphic Prompting Guidelines
+name: graphic-prompt-types
 description: guidelines and examples for good image prompts based on the image style
 ---
 
