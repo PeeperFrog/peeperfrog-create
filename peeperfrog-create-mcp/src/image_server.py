@@ -839,13 +839,24 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         if not caption:
             caption = title
 
+        # Encode reference images to base64 for batch API
+        encoded_refs = []
+        if ref_paths:
+            for ref_path in ref_paths:
+                ref_full = os.path.expanduser(ref_path)
+                if not os.path.exists(ref_full):
+                    raise Exception(f"Reference image not found: {ref_full}")
+                with open(ref_full, 'rb') as f:
+                    encoded_refs.append(base64.b64encode(f.read()).decode('utf-8'))
+
         # Build batch request
         batch_request = {
             "prompt": prompt,
             "aspect_ratio": aspect_ratio,
             "image_size": image_size,
             "quality": quality,
-            "reference_images": ref_paths,
+            "reference_images": encoded_refs,
+            "reference_image_paths": ref_paths,  # Store original paths for metadata
             "gemini_opts": {
                 "search_grounding": search_grounding,
                 "thinking_level": thinking_level,

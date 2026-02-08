@@ -633,7 +633,8 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
                 aspect_ratio=aspect_ratio,
                 image_size=image_size,
                 quality=100,  # PNG is lossless
-                cost=cost or 0.0
+                cost=cost or 0.0,
+                reference_images=reference_images if reference_images else None
             )
             metadata_path = write_metadata_file(output_path, metadata, json_dir=DIRS.get("json_dir"))
 
