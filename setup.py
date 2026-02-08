@@ -1828,6 +1828,7 @@ def main():
     # Track what changed for context-aware instructions
     mcp_updated = False
     skills_updated = False
+    batch_cron_already_setup = False
 
     if already_installed:
         print(f"\n✅ Existing installation detected at: {install_dir}")
@@ -1990,6 +1991,7 @@ def main():
                             # Setup cron job immediately
                             try:
                                 setup_batch_checker_cron(install_dir)
+                                batch_cron_already_setup = True
                             except Exception as e:
                                 print(f"  ⚠️  Failed to setup cron: {str(e)}")
                         else:
@@ -2040,9 +2042,9 @@ def main():
                         offer_config_setup(install_dir, missing_servers)
                         mcp_updated = True
 
-        # Setup batch checker cron job (if image server is installed)
+        # Setup batch checker cron job (if image server is installed and not already set up)
         image_mcp_dir = install_dir / "peeperfrog-create-mcp"
-        if image_mcp_dir.exists() and not update_only and not health_only:
+        if image_mcp_dir.exists() and not update_only and not health_only and not batch_cron_already_setup:
             try:
                 setup_batch_checker_cron(install_dir)
             except Exception as e:
