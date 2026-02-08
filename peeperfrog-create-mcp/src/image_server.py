@@ -879,18 +879,44 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         if cost:
             cost = cost * 0.5  # 50% discount for batch API
 
+        batch_job_id = batch_result["batch_job_id"]
+
+        # Store batch metadata for later retrieval
+        batch_metadata = {
+            "batch_job_id": batch_job_id,
+            "submitted_at": datetime.now().isoformat(),
+            "prompt": prompt,
+            "title": title,
+            "description": description,
+            "alternative_text": alternative_text,
+            "caption": caption,
+            "provider": provider,
+            "quality": quality,
+            "aspect_ratio": aspect_ratio,
+            "image_size": image_size,
+            "reference_image_paths": ref_paths,
+            "cost": cost,
+            "convert_to_webp": convert_to_webp,
+            "webp_quality": webp_quality
+        }
+        batch_metadata_dir = os.path.join(DIRS["metadata_dir"], "batch_metadata")
+        os.makedirs(batch_metadata_dir, exist_ok=True)
+        batch_metadata_file = os.path.join(batch_metadata_dir, f"{batch_job_id}.json")
+        with open(batch_metadata_file, 'w') as f:
+            json.dump(batch_metadata, f, indent=2)
+
         return {
             "success": True,
             "queued": True,
             "priority": "low",
-            "batch_job_id": batch_result["batch_job_id"],
+            "batch_job_id": batch_job_id,
             "request_count": 1,
             "estimated_completion": "24 hours",
             "estimated_cost_usd": cost,
             "provider": provider,
             "quality": quality,
             "note": "Use check_batch_status tool to monitor progress",
-            "message": f"Image queued for batch generation (50% discount). Job ID: {batch_result['batch_job_id']}"
+            "message": f"Image queued for batch generation (50% discount). Job ID: {batch_job_id}"
         }
 
     # Dispatch to provider (immediate generation for priority="high")
@@ -1908,11 +1934,68 @@ def handle_tool_call(request_id, tool_name, arguments):
             )
         elif tool_name == "retrieve_batch_results":
             from gemini_batch import retrieve_batch_results
+            from metadata import create_metadata_dict, write_metadata_file, copy_metadata_for_webp
+
+            batch_job_id = arguments.get("batch_job_id")
+
+            # Load stored batch metadata
+            batch_metadata_file = os.path.join(DIRS["metadata_dir"], "batch_metadata", f"{batch_job_id}.json")
+            batch_metadata = None
+            if os.path.exists(batch_metadata_file):
+                with open(batch_metadata_file, 'r') as f:
+                    batch_metadata = json.load(f)
+
+            # Retrieve images from batch API
             result = retrieve_batch_results(
-                arguments.get("batch_job_id"),
+                batch_job_id,
                 os.environ.get("GEMINI_API_KEY"),
                 DIRS["original_dir"]
             )
+
+            # If successful and we have metadata, create JSON files and WebP conversions
+            if result.get("success") and batch_metadata:
+                for img_result in result.get("results", []):
+                    if img_result.get("status") == "success":
+                        image_path = img_result.get("image_path")
+
+                        # Determine model name
+                        provider = batch_metadata.get("provider", "gemini")
+                        quality = batch_metadata.get("quality", "pro")
+                        model = PROVIDERS.get(provider, {}).get("models", {}).get(quality, "unknown")
+
+                        # Create metadata JSON
+                        metadata = create_metadata_dict(
+                            prompt=batch_metadata.get("prompt", ""),
+                            title=batch_metadata.get("title", ""),
+                            description=batch_metadata.get("description", ""),
+                            alternative_text=batch_metadata.get("alternative_text", ""),
+                            caption=batch_metadata.get("caption", ""),
+                            provider=provider,
+                            model=model,
+                            aspect_ratio=batch_metadata.get("aspect_ratio", "1:1"),
+                            image_size=batch_metadata.get("image_size", "large"),
+                            quality=100,
+                            cost=batch_metadata.get("cost", 0.0),
+                            reference_images=batch_metadata.get("reference_image_paths")
+                        )
+                        metadata_path = write_metadata_file(image_path, metadata, json_dir=DIRS["json_dir"])
+                        img_result["metadata_path"] = metadata_path
+
+                        # Convert to WebP if requested
+                        if batch_metadata.get("convert_to_webp", False):
+                            webp_quality = batch_metadata.get("webp_quality", 85)
+                            webp_path, webp_size = _convert_png_to_webp(image_path, webp_quality)
+                            if webp_path:
+                                img_result["webp_path"] = webp_path
+                                img_result["webp_size"] = webp_size
+                                # Create WebP metadata
+                                copy_metadata_for_webp(image_path, webp_path, webp_quality, json_dir=DIRS["json_dir"])
+
+                result["metadata_created"] = True
+                result["webp_converted"] = batch_metadata.get("convert_to_webp", False)
+            elif result.get("success") and not batch_metadata:
+                result["warning"] = "Batch metadata not found - images saved but no metadata created"
+
         else:
             raise Exception(f"Unknown tool: {tool_name}")
 
