@@ -905,6 +905,26 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         with open(batch_metadata_file, 'w') as f:
             json.dump(batch_metadata, f, indent=2)
 
+        # Add to batch jobs tracking file
+        tracking_file = os.path.join(DIRS["metadata_dir"], "batch_jobs_tracking.json")
+        tracking_data = {}
+        if os.path.exists(tracking_file):
+            with open(tracking_file, 'r') as f:
+                tracking_data = json.load(f)
+
+        tracking_data[batch_job_id] = {
+            "batch_job_id": batch_job_id,
+            "status": "pending",
+            "submitted_at": datetime.now().isoformat(),
+            "last_checked": None,
+            "completed_at": None,
+            "retrieved": False,
+            "check_count": 0
+        }
+
+        with open(tracking_file, 'w') as f:
+            json.dump(tracking_data, f, indent=2)
+
         return {
             "success": True,
             "queued": True,
@@ -1993,6 +2013,19 @@ def handle_tool_call(request_id, tool_name, arguments):
 
                 result["metadata_created"] = True
                 result["webp_converted"] = batch_metadata.get("convert_to_webp", False)
+
+                # Update tracking file
+                tracking_file = os.path.join(DIRS["metadata_dir"], "batch_jobs_tracking.json")
+                if os.path.exists(tracking_file):
+                    with open(tracking_file, 'r') as f:
+                        tracking_data = json.load(f)
+                    if batch_job_id in tracking_data:
+                        tracking_data[batch_job_id]["status"] = "completed"
+                        tracking_data[batch_job_id]["retrieved"] = True
+                        tracking_data[batch_job_id]["completed_at"] = datetime.now().isoformat()
+                        with open(tracking_file, 'w') as f:
+                            json.dump(tracking_data, f, indent=2)
+
             elif result.get("success") and not batch_metadata:
                 result["warning"] = "Batch metadata not found - images saved but no metadata created"
 

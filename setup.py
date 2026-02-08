@@ -1644,6 +1644,154 @@ The setup will guide you through getting each credential.
 """)
 
 
+def setup_batch_checker_cron(install_dir):
+    """Set up cron job for automatic batch job checking."""
+    print("\n📅 Setting up automated batch job checker...")
+
+    # Load config to get interval setting
+    config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
+    if not config_path.exists():
+        print("  ⚠️  config.json not found - skipping cron setup")
+        return False
+
+    with open(config_path, 'r') as f:
+        config = json.load(f)
+
+    enabled = config.get("batch_check_enabled", True)
+    if not enabled:
+        print("  ℹ️  Batch checker disabled in config - skipping cron setup")
+        return False
+
+    interval_minutes = config.get("batch_check_interval_minutes", 30)
+
+    # Validate interval (5 minutes to 24 hours)
+    if not (5 <= interval_minutes <= 1440):
+        print(f"  ⚠️  Invalid interval ({interval_minutes}min) - must be 5-1440. Using default: 30")
+        interval_minutes = 30
+
+    # Get absolute path to batch_checker.py
+    batch_checker_script = install_dir / "peeperfrog-create-mcp" / "src" / "batch_checker.py"
+    if not batch_checker_script.exists():
+        print(f"  ⚠️  batch_checker.py not found at {batch_checker_script}")
+        return False
+
+    # Get Python interpreter (prefer venv python if it exists)
+    venv_python = install_dir / "peeperfrog-create-mcp" / "venv" / "bin" / "python3"
+    python_cmd = str(venv_python) if venv_python.exists() else sys.executable
+
+    # Create log directory
+    log_dir = install_dir / "peeperfrog-create-mcp" / "logs"
+    log_dir.mkdir(exist_ok=True)
+    log_file = log_dir / "batch_checker.log"
+
+    # Build cron command
+    cron_command = f"{python_cmd} {batch_checker_script} >> {log_file} 2>&1"
+
+    # Calculate cron schedule
+    if interval_minutes == 60:
+        cron_schedule = "0 * * * *"  # Every hour at minute 0
+    elif interval_minutes == 1440:
+        cron_schedule = "0 0 * * *"  # Daily at midnight
+    elif interval_minutes == 30:
+        cron_schedule = "*/30 * * * *"  # Every 30 minutes
+    elif interval_minutes == 15:
+        cron_schedule = "*/15 * * * *"  # Every 15 minutes
+    else:
+        cron_schedule = f"*/{interval_minutes} * * * *"  # Every N minutes
+
+    cron_entry = f"{cron_schedule} {cron_command}"
+    cron_marker = "# PeeperFrog Create batch checker"
+
+    try:
+        # Get current crontab
+        result = subprocess.run(
+            ["crontab", "-l"],
+            capture_output=True,
+            text=True
+        )
+        existing_crontab = result.stdout if result.returncode == 0 else ""
+
+        # Remove old entry if exists
+        lines = [
+            line for line in existing_crontab.split('\n')
+            if cron_marker not in line and batch_checker_script.name not in line
+        ]
+
+        # Add new entry
+        lines.append(f"{cron_marker}")
+        lines.append(cron_entry)
+        lines.append("")  # Empty line at end
+
+        new_crontab = '\n'.join(lines)
+
+        # Install new crontab
+        process = subprocess.Popen(
+            ["crontab", "-"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        stdout, stderr = process.communicate(input=new_crontab)
+
+        if process.returncode == 0:
+            print(f"  ✅ Cron job installed - checks every {interval_minutes} minutes")
+            print(f"  📝 Log file: {log_file}")
+            return True
+        else:
+            print(f"  ⚠️  Failed to install cron job: {stderr}")
+            return False
+
+    except FileNotFoundError:
+        print("  ⚠️  crontab command not found - cron not available on this system")
+        return False
+    except Exception as e:
+        print(f"  ⚠️  Error setting up cron: {str(e)}")
+        return False
+
+
+def remove_batch_checker_cron():
+    """Remove the batch checker cron job."""
+    try:
+        # Get current crontab
+        result = subprocess.run(
+            ["crontab", "-l"],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            return True  # No crontab exists
+
+        existing_crontab = result.stdout
+        cron_marker = "# PeeperFrog Create batch checker"
+
+        # Remove entry
+        lines = [
+            line for line in existing_crontab.split('\n')
+            if cron_marker not in line and "batch_checker.py" not in line
+        ]
+
+        if len(lines) == len(existing_crontab.split('\n')):
+            return True  # Nothing to remove
+
+        new_crontab = '\n'.join(lines)
+
+        # Install new crontab
+        process = subprocess.Popen(
+            ["crontab", "-"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        process.communicate(input=new_crontab)
+
+        return process.returncode == 0
+
+    except Exception:
+        return False
+
+
 def main():
     print()
     print("=" * 60)
@@ -1842,6 +1990,14 @@ def main():
                         offer_config_setup(install_dir, missing_servers)
                         mcp_updated = True
 
+        # Setup batch checker cron job (if image server is installed)
+        image_mcp_dir = install_dir / "peeperfrog-create-mcp"
+        if image_mcp_dir.exists() and not update_only and not health_only:
+            try:
+                setup_batch_checker_cron(install_dir)
+            except Exception as e:
+                print(f"  ⚠️  Failed to setup batch checker cron: {str(e)}")
+
         # Show context-aware instructions based on what changed
         if mcp_updated or skills_updated:
             print_restart_instructions(
@@ -1935,6 +2091,13 @@ def main():
                     input("\nPress Enter to continue...")
 
         print("\n✅ Installation complete!")
+
+        # Setup batch checker cron job (if image server was installed)
+        if "peeperfrog-create-mcp" in servers_to_setup and not update_only:
+            try:
+                setup_batch_checker_cron(install_dir)
+            except Exception as e:
+                print(f"  ⚠️  Failed to setup batch checker cron: {str(e)}")
 
         # Install update-pfc command to PATH
         install_update_command(install_dir)
