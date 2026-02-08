@@ -59,10 +59,18 @@ def load_config():
     # Backwards compatibility: use generated_images_path if available, otherwise images_dir
     if "generated_images_path" not in cfg and "images_dir" in cfg:
         cfg["generated_images_path"] = cfg["images_dir"]
-    # Derived paths (kept for backwards compatibility)
-    cfg["batch_dir"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("batch_subdir", "batch"))
-    cfg["webp_dir"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("webp_subdir", "webp"))
-    cfg["queue_file"] = os.path.join(cfg.get("generated_images_path", cfg["images_dir"]), cfg.get("queue_filename", "batch_queue.json"))
+
+    # Set defaults for directory structure (configurable subdirectories)
+    cfg.setdefault("original_subdir", "original")
+    cfg.setdefault("webp_subdir", "webp")
+    cfg.setdefault("metadata_subdir", "metadata")
+    cfg.setdefault("json_subdir", "json")
+
+    # Derived paths for backwards compatibility
+    base_path = cfg.get("generated_images_path", cfg["images_dir"])
+    cfg["batch_dir"] = os.path.join(base_path, cfg.get("batch_subdir", "batch"))
+    cfg["webp_dir"] = os.path.join(base_path, cfg["webp_subdir"])
+    cfg["queue_file"] = os.path.join(base_path, cfg["metadata_subdir"], cfg.get("queue_filename", "batch_queue.json"))
     return cfg
 
 CFG = load_config()
@@ -70,31 +78,36 @@ MAX_REF_IMAGES = CFG.get("max_reference_images", 14)
 
 # --- Directory Structure Management ---
 
-def initialize_directory_structure(base_path):
+def initialize_directory_structure(base_path, original_subdir="original", webp_subdir="webp",
+                                   metadata_subdir="metadata", json_subdir="json"):
     """
     Create new folder structure for generated images.
 
     Structure:
     base_path/
-      ├── original/       # All generated PNG images
-      ├── webp/          # All WebP conversions
-      └── metadata/      # All metadata
-          ├── json/      # Image .json sidecar files
+      ├── original/       # All generated PNG images (configurable)
+      ├── webp/          # All WebP conversions (configurable)
+      └── metadata/      # All metadata (configurable)
+          ├── json/      # Image .json sidecar files (configurable)
           ├── batch_queue.json
           └── generation_log_MONTH_YEAR.csv
 
     Args:
         base_path: Base directory path (can include ~)
+        original_subdir: Subdirectory name for original images (default: "original")
+        webp_subdir: Subdirectory name for WebP images (default: "webp")
+        metadata_subdir: Subdirectory name for metadata (default: "metadata")
+        json_subdir: Subdirectory name for JSON files under metadata (default: "json")
 
     Returns:
         Dict with paths to original_dir, webp_dir, metadata_dir, json_dir
     """
     base = os.path.expanduser(base_path)
     dirs = {
-        "original_dir": os.path.join(base, "original"),
-        "webp_dir": os.path.join(base, "webp"),
-        "metadata_dir": os.path.join(base, "metadata"),
-        "json_dir": os.path.join(base, "metadata", "json")
+        "original_dir": os.path.join(base, original_subdir),
+        "webp_dir": os.path.join(base, webp_subdir),
+        "metadata_dir": os.path.join(base, metadata_subdir),
+        "json_dir": os.path.join(base, metadata_subdir, json_subdir)
     }
     for d in dirs.values():
         os.makedirs(d, exist_ok=True)
@@ -147,7 +160,13 @@ def get_image_path_with_fallback(filename):
 # Initialize directory structure
 # Use generated_images_path if available, otherwise fall back to images_dir
 base_images_path = CFG.get("generated_images_path", CFG.get("images_dir"))
-DIRS = initialize_directory_structure(base_images_path)
+DIRS = initialize_directory_structure(
+    base_images_path,
+    original_subdir=CFG["original_subdir"],
+    webp_subdir=CFG["webp_subdir"],
+    metadata_subdir=CFG["metadata_subdir"],
+    json_subdir=CFG["json_subdir"]
+)
 
 # --- Debug logging ---
 DEBUG_ENABLED = CFG.get("debug", False)

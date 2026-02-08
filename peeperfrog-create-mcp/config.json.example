@@ -1,7 +1,10 @@
 {
+  "generated_images_path": "~/Pictures/ai-generated-images",
   "images_dir": "~/Pictures/ai-generated-images",
-  "batch_subdir": "batch",
+  "original_subdir": "original",
   "webp_subdir": "webp",
+  "metadata_subdir": "metadata",
+  "json_subdir": "json",
   "queue_filename": "batch_queue.json",
   "batch_manager_script": "./src/batch_manager.py",
   "batch_generate_script": "./src/batch_generate.py",

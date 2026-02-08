@@ -1007,6 +1007,111 @@ def setup_image_generation_path(config_path):
     return True
 
 
+def validate_folder_name(folder_name):
+    """Validate that a folder name is safe for filesystems.
+
+    Returns (is_valid, error_message) tuple.
+    """
+    if not folder_name:
+        return (False, "Folder name cannot be empty")
+
+    # Check for invalid characters (most restrictive set for cross-platform compatibility)
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\0']
+    for char in invalid_chars:
+        if char in folder_name:
+            return (False, f"Invalid character '{char}' in folder name")
+
+    # Check for reserved names on Windows
+    reserved_names = ['CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 'COM5',
+                      'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3', 'LPT4',
+                      'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9']
+    if folder_name.upper() in reserved_names:
+        return (False, f"'{folder_name}' is a reserved name on Windows")
+
+    # Check for leading/trailing spaces or dots (problematic on Windows)
+    if folder_name != folder_name.strip():
+        return (False, "Folder name cannot start or end with spaces")
+    if folder_name.startswith('.') or folder_name.endswith('.'):
+        return (False, "Folder name cannot start or end with a dot")
+
+    # Check length (most filesystems limit to 255 bytes)
+    if len(folder_name.encode('utf-8')) > 255:
+        return (False, "Folder name is too long (max 255 bytes)")
+
+    return (True, "")
+
+
+def setup_folder_structure(config_path):
+    """Check for missing folder configuration and prompt user to add them."""
+    print("\n" + "=" * 60)
+    print("📁 Directory Structure Configuration")
+    print("=" * 60)
+    print("\n  Configure the subdirectories for organizing generated images:")
+
+    # Default values
+    defaults = {
+        "original_subdir": "original",
+        "webp_subdir": "webp",
+        "metadata_subdir": "metadata",
+        "json_subdir": "json"
+    }
+
+    descriptions = {
+        "original_subdir": "Original PNG images",
+        "webp_subdir": "WebP conversions",
+        "metadata_subdir": "Metadata and logs",
+        "json_subdir": "JSON sidecar files (under metadata)"
+    }
+
+    # Read existing config
+    existing_config = {}
+    if config_path.exists():
+        try:
+            with open(config_path, "r") as f:
+                existing_config = json.load(f)
+        except Exception:
+            pass
+
+    # Check which folders are missing
+    missing_folders = {k: v for k, v in defaults.items() if k not in existing_config}
+
+    if not missing_folders:
+        print("\n  ✅ All folder configurations present")
+        return True
+
+    print(f"\n  Found {len(missing_folders)} missing folder configuration(s).")
+    print("  Press Enter to accept default, or type a custom folder name.\n")
+
+    updates = {}
+    for key, default_value in missing_folders.items():
+        description = descriptions.get(key, "")
+
+        while True:
+            print(f"  {description}")
+            folder_input = input(f"  {key} [default: {default_value}]: ").strip()
+
+            if not folder_input:
+                folder_input = default_value
+
+            # Validate folder name
+            is_valid, error_msg = validate_folder_name(folder_input)
+            if not is_valid:
+                print(f"  ❌ {error_msg}")
+                print("  Please try again.\n")
+                continue
+
+            updates[key] = folder_input
+            print(f"  ✅ Set to: {folder_input}\n")
+            break
+
+    # Write updates to config.json
+    if updates:
+        write_config_json(config_path, updates)
+        print(f"  ✅ Folder configurations saved to config.json")
+
+    return True
+
+
 def collect_wordpress_config():
     """Collect WordPress site configuration for image uploads."""
     sites = {}
@@ -1118,6 +1223,10 @@ def offer_config_setup(install_dir, selected_servers, collected_keys=None):
         config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
         if not setup_image_generation_path(config_path):
             print("  ⚠️  Image generation path setup failed, but continuing...")
+
+        # Setup folder structure configuration
+        if not setup_folder_structure(config_path):
+            print("  ⚠️  Folder structure setup failed, but continuing...")
 
     # Collect WordPress configuration for image server
     wp_sites = None
@@ -1682,6 +1791,21 @@ def main():
             skills_installed = install_skills(install_dir)
 
         print("\n✅ Update complete!")
+
+        # Check if folder structure config needs updating
+        if not update_only:
+            config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
+            if config_path.exists():
+                try:
+                    with open(config_path, "r") as f:
+                        config_data = json.load(f)
+                    # Check if any folder settings are missing
+                    missing = any(k not in config_data for k in ["original_subdir", "webp_subdir", "metadata_subdir", "json_subdir"])
+                    if missing:
+                        if prompt_yes_no("\n  Update folder structure configuration?", default=True):
+                            setup_folder_structure(config_path)
+                except Exception:
+                    pass
 
         # Ensure update-pfc command is on PATH
         install_update_command(install_dir)
