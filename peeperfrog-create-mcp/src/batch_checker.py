@@ -5,16 +5,24 @@ Batch Job Checker - Automatically checks and retrieves completed batch jobs.
 This script is designed to be run by cron to periodically check pending
 batch jobs and retrieve completed results automatically.
 
+Features:
+- Automatic log rotation (max 10MB per file, keeps 10 backup files)
+- Logs stored in metadata/logs/ directory
+- Checks all pending batch jobs
+- Retrieves completed jobs with metadata and WebP conversion
+
 Usage:
     python3 batch_checker.py [--verbose]
 
 Cron example (every 30 minutes):
-    */30 * * * * /usr/bin/python3 /path/to/batch_checker.py >> /path/to/batch_checker.log 2>&1
+    */30 * * * * /usr/bin/python3 /path/to/batch_checker.py 2>&1
 """
 
 import sys
 import os
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from pathlib import Path
 
@@ -28,10 +36,39 @@ from metadata import create_metadata_dict, write_metadata_file, copy_metadata_fo
 from gemini_batch import check_batch_status, retrieve_batch_results
 
 
+# Setup logging with rotation
+LOG_DIR = os.path.join(DIRS["metadata_dir"], "logs")
+os.makedirs(LOG_DIR, exist_ok=True)
+LOG_FILE = os.path.join(LOG_DIR, "batch_checker.log")
+
+# Configure rotating log handler
+# Max 10MB per file, keep 10 backup files = 100MB total max
+handler = RotatingFileHandler(
+    LOG_FILE,
+    maxBytes=10 * 1024 * 1024,  # 10MB
+    backupCount=10
+)
+handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s'))
+
+logger = logging.getLogger('batch_checker')
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
+
+# Also log to console if verbose
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter('[%(asctime)s] [%(levelname)s] %(message)s'))
+
+
 def log(message, level="INFO"):
     """Log message with timestamp."""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] [{level}] {message}")
+    if level == "INFO":
+        logger.info(message)
+    elif level == "WARNING":
+        logger.warning(message)
+    elif level == "ERROR":
+        logger.error(message)
+    else:
+        logger.info(message)
 
 
 def load_tracking_data():
@@ -193,7 +230,12 @@ def main():
     """Main entry point."""
     verbose = "--verbose" in sys.argv or "-v" in sys.argv
 
+    # Add console logging if verbose
+    if verbose:
+        logger.addHandler(console_handler)
+
     try:
+        log(f"Batch checker started (log: {LOG_FILE})")
         check_and_retrieve_batch_jobs(verbose=verbose)
     except Exception as e:
         log(f"Fatal error in batch checker: {str(e)}", "ERROR")

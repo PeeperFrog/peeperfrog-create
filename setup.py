@@ -1679,13 +1679,14 @@ def setup_batch_checker_cron(install_dir):
     venv_python = install_dir / "peeperfrog-create-mcp" / "venv" / "bin" / "python3"
     python_cmd = str(venv_python) if venv_python.exists() else sys.executable
 
-    # Create log directory
-    log_dir = install_dir / "peeperfrog-create-mcp" / "logs"
-    log_dir.mkdir(exist_ok=True)
-    log_file = log_dir / "batch_checker.log"
+    # Log file path (determined by batch_checker.py from config)
+    # Typically: ~/Pictures/ai-generated-images/metadata/logs/batch_checker.log
+    generated_images_path = config.get("generated_images_path", config.get("images_dir", "~/Pictures/ai-generated-images"))
+    metadata_subdir = config.get("metadata_subdir", "metadata")
+    log_file = Path(generated_images_path).expanduser() / metadata_subdir / "logs" / "batch_checker.log"
 
-    # Build cron command
-    cron_command = f"{python_cmd} {batch_checker_script} >> {log_file} 2>&1"
+    # Build cron command (batch_checker.py handles its own logging with rotation)
+    cron_command = f"{python_cmd} {batch_checker_script} 2>&1"
 
     # Calculate cron schedule
     if interval_minutes == 60:
@@ -1940,19 +1941,68 @@ def main():
 
         print("\n✅ Update complete!")
 
-        # Check if folder structure config needs updating
+        # Check if config needs updating
         if not update_only:
             config_path = install_dir / "peeperfrog-create-mcp" / "config.json"
             if config_path.exists():
                 try:
                     with open(config_path, "r") as f:
                         config_data = json.load(f)
-                    # Check if any folder settings are missing
-                    missing = any(k not in config_data for k in ["original_subdir", "webp_subdir", "metadata_subdir", "json_subdir"])
-                    if missing:
+
+                    # Check if folder structure settings are missing
+                    folder_missing = any(k not in config_data for k in ["original_subdir", "webp_subdir", "metadata_subdir", "json_subdir"])
+                    if folder_missing:
                         if prompt_yes_no("\n  Update folder structure configuration?", default=True):
                             setup_folder_structure(config_path)
-                except Exception:
+                            # Reload config after update
+                            with open(config_path, "r") as f:
+                                config_data = json.load(f)
+
+                    # Check if batch checker settings are missing
+                    batch_missing = any(k not in config_data for k in ["batch_check_enabled", "batch_check_interval_minutes", "batch_checker_script"])
+                    if batch_missing:
+                        print("\n⚠️  New feature available: Automated batch job checker")
+                        print("   Automatically checks and retrieves completed batch jobs in the background")
+                        if prompt_yes_no("\n  Enable automated batch job checker?", default=True):
+                            # Prompt for interval
+                            while True:
+                                interval_input = input("\n  Check interval in minutes (5-1440, default 30): ").strip()
+                                if not interval_input:
+                                    interval = 30
+                                    break
+                                try:
+                                    interval = int(interval_input)
+                                    if 5 <= interval <= 1440:
+                                        break
+                                    print("    ⚠️  Must be between 5 and 1440 minutes")
+                                except ValueError:
+                                    print("    ⚠️  Please enter a number")
+
+                            updates = {
+                                "batch_check_enabled": True,
+                                "batch_check_interval_minutes": interval,
+                                "batch_checker_script": "./src/batch_checker.py"
+                            }
+                            write_config_json(config_path, updates)
+                            print(f"  ✅ Batch checker enabled (checks every {interval} minutes)")
+                            print(f"  📝 Logs: ~/Pictures/ai-generated-images/metadata/logs/batch_checker.log")
+
+                            # Setup cron job immediately
+                            try:
+                                setup_batch_checker_cron(install_dir)
+                            except Exception as e:
+                                print(f"  ⚠️  Failed to setup cron: {str(e)}")
+                        else:
+                            updates = {
+                                "batch_check_enabled": False,
+                                "batch_check_interval_minutes": 30,
+                                "batch_checker_script": "./src/batch_checker.py"
+                            }
+                            write_config_json(config_path, updates)
+                            print("  ℹ️  Batch checker disabled (can enable later in config.json)")
+
+                except Exception as e:
+                    print(f"  ⚠️  Error checking config: {str(e)}")
                     pass
 
         # Ensure update-pfc command is on PATH
