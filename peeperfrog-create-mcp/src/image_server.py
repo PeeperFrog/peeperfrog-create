@@ -107,7 +107,7 @@ def initialize_directory_structure(base_path, original_subdir="original", webp_s
         "original_dir": os.path.join(base, original_subdir),
         "webp_dir": os.path.join(base, webp_subdir),
         "metadata_dir": os.path.join(base, metadata_subdir),
-        "json_dir": os.path.join(base, metadata_subdir, json_subdir)
+        "json_dir": os.path.join(base, json_subdir)
     }
     for d in dirs.values():
         os.makedirs(d, exist_ok=True)
@@ -926,9 +926,10 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         aspect_ratio=aspect_ratio,
         image_size=image_size,
         quality=100,
-        cost=cost or 0.0
+        cost=cost or 0.0,
+        reference_images=ref_paths if ref_paths else None
     )
-    metadata_path = write_metadata_file(filename, metadata)
+    metadata_path = write_metadata_file(filename, metadata, json_dir=DIRS["json_dir"])
 
     # WebP conversion
     webp_path = None
@@ -938,7 +939,7 @@ def generate_image(prompt, aspect_ratio="1:1", image_size="large", reference_ima
         if webp_path:
             # Copy metadata to WebP
             from metadata import copy_metadata_for_webp
-            copy_metadata_for_webp(filename, webp_path, webp_quality)
+            copy_metadata_for_webp(filename, webp_path, webp_quality, json_dir=DIRS["json_dir"])
 
     result = {
         "success": True,

@@ -21,7 +21,8 @@ def create_metadata_dict(
     aspect_ratio,
     image_size,
     quality=100,
-    cost=0.0
+    cost=0.0,
+    reference_images=None
 ):
     """
     Build metadata dictionary for JSON sidecar file.
@@ -38,11 +39,12 @@ def create_metadata_dict(
         image_size: Image size (small, medium, large)
         quality: Image quality (0-100)
         cost: Generation cost in USD
+        reference_images: List of reference image paths used (optional)
 
     Returns:
         Dictionary with complete metadata
     """
-    return {
+    metadata = {
         "date_time_created": datetime.now().isoformat(),
         "prompt": prompt,
         "title": title,
@@ -56,15 +58,19 @@ def create_metadata_dict(
         "quality": quality,
         "cost": cost
     }
+    if reference_images:
+        metadata["reference_images"] = reference_images
+    return metadata
 
 
-def write_metadata_file(image_path, metadata_dict):
+def write_metadata_file(image_path, metadata_dict, json_dir=None):
     """
     Write JSON sidecar file for image.
 
     Args:
         image_path: Full path to image file (e.g., /path/to/original/image.png)
         metadata_dict: Dictionary from create_metadata_dict()
+        json_dir: Optional JSON directory path (if None, uses base_dir/metadata/json)
 
     Returns:
         Path to created JSON file
@@ -72,10 +78,11 @@ def write_metadata_file(image_path, metadata_dict):
     Creates: /path/to/metadata/json/image.png.json
     """
     # Get the base directory (parent of original/ or webp/)
-    image_dir = os.path.dirname(image_path)
-    base_dir = os.path.dirname(image_dir)
+    if json_dir is None:
+        image_dir = os.path.dirname(image_path)
+        base_dir = os.path.dirname(image_dir)
+        json_dir = os.path.join(base_dir, "json")
 
-    json_dir = os.path.join(base_dir, "metadata", "json")
     os.makedirs(json_dir, exist_ok=True)
 
     basename = os.path.basename(image_path)
@@ -87,21 +94,23 @@ def write_metadata_file(image_path, metadata_dict):
     return json_path
 
 
-def read_metadata_file(image_path):
+def read_metadata_file(image_path, json_dir=None):
     """
     Read JSON sidecar file for image.
 
     Args:
         image_path: Path to image file
+        json_dir: Optional JSON directory path (if None, uses base_dir/metadata/json)
 
     Returns:
         Metadata dict or None if not found
     """
     # Get the base directory (parent of original/ or webp/)
-    image_dir = os.path.dirname(image_path)
-    base_dir = os.path.dirname(image_dir)
+    if json_dir is None:
+        image_dir = os.path.dirname(image_path)
+        base_dir = os.path.dirname(image_dir)
+        json_dir = os.path.join(base_dir, "json")
 
-    json_dir = os.path.join(base_dir, "metadata", "json")
     basename = os.path.basename(image_path)
     json_path = os.path.join(json_dir, f"{basename}.json")
 
@@ -112,7 +121,7 @@ def read_metadata_file(image_path):
         return json.load(f)
 
 
-def copy_metadata_for_webp(original_image_path, webp_image_path, webp_quality):
+def copy_metadata_for_webp(original_image_path, webp_image_path, webp_quality, json_dir=None):
     """
     Copy metadata from original PNG to WebP, updating date_time_created and quality.
 
@@ -120,12 +129,13 @@ def copy_metadata_for_webp(original_image_path, webp_image_path, webp_quality):
         original_image_path: Path to original PNG
         webp_image_path: Path to converted WebP
         webp_quality: WebP quality setting (0-100)
+        json_dir: Optional JSON directory path (if None, uses base_dir/metadata/json)
 
     Returns:
         Path to created WebP metadata JSON file, or None if original metadata not found
     """
     # Read original metadata
-    metadata = read_metadata_file(original_image_path)
+    metadata = read_metadata_file(original_image_path, json_dir=json_dir)
     if not metadata:
         return None
 
@@ -134,7 +144,7 @@ def copy_metadata_for_webp(original_image_path, webp_image_path, webp_quality):
     metadata["quality"] = webp_quality
 
     # Write WebP metadata
-    return write_metadata_file(webp_image_path, metadata)
+    return write_metadata_file(webp_image_path, metadata, json_dir=json_dir)
 
 
 def update_wordpress_info(image_path, media_id, media_url):

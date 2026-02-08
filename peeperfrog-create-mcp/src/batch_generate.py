@@ -111,10 +111,10 @@ except ImportError:
     # Fallback: create basic directory structure
     base_path = CFG.get("generated_images_path", CFG.get("images_dir"))
     DIRS = {
-        "original_dir": os.path.join(base_path, "original"),
-        "webp_dir": os.path.join(base_path, "webp"),
-        "metadata_dir": os.path.join(base_path, "metadata"),
-        "json_dir": os.path.join(base_path, "metadata", "json")
+        "original_dir": os.path.join(base_path, CFG.get("original_subdir", "original")),
+        "webp_dir": os.path.join(base_path, CFG.get("webp_subdir", "webp")),
+        "metadata_dir": os.path.join(base_path, CFG.get("metadata_subdir", "metadata")),
+        "json_dir": os.path.join(base_path, CFG.get("json_subdir", "json"))
     }
     for d in DIRS.values():
         os.makedirs(d, exist_ok=True)
@@ -635,7 +635,7 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
                 quality=100,  # PNG is lossless
                 cost=cost or 0.0
             )
-            metadata_path = write_metadata_file(output_path, metadata)
+            metadata_path = write_metadata_file(output_path, metadata, json_dir=DIRS.get("json_dir"))
 
             result = {
                 "filename": filename, "status": "success", "path": output_path,
@@ -656,7 +656,7 @@ def generate_images_batch(prompts_file, output_dir, convert_to_webp=False, webp_
                     result["webp_path"] = wp
                     result["webp_size"] = ws
                     # Copy metadata to WebP
-                    copy_metadata_for_webp(output_path, wp, webp_quality)
+                    copy_metadata_for_webp(output_path, wp, webp_quality, json_dir=DIRS.get("json_dir"))
             remove_from_queue(queue_filename)
             log_generation(filename, "success", cost, provider, quality, aspect_ratio)
 
